@@ -199,6 +199,29 @@ class CharLSTM(object):
         _LOGGER.debug('Finished loading the model.')
         return instance
 
+    def predict(self, names: list, return_proba=True):
+        """
+        Predict the genders of given names.
+
+        :param names: list of names
+        :param return_proba: output probability if set as True
+        """
+        nodes = self._nodes
+        X = self._encode_chars(names, fit=False)
+        X, seq_lens = self._add_padding(X)
+        y_pred = self._session.run(
+            nodes['y_pred'],
+            feed_dict={nodes['X']: X, nodes['seq_lens']: seq_lens, nodes['is_train']: False})
+
+        # list isn't returned when len(X) == 1
+        if not isinstance(y_pred, list):
+            y_pred = [y_pred]
+
+        if return_proba:
+            return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: 1 - proba} for proba in y_pred]
+        else:
+            return self._categorize_y(y_pred)
+
     def _save(self, model_path, session):
         """Save the tensorflow session and the instance object of this Python class."""
         if not os.path.exists(model_path):
