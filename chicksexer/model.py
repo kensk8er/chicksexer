@@ -193,6 +193,8 @@ class CharLSTM(object):
         instance._build_graph()
         instance._session = tf.Session(graph=instance._graph)
         instance._session.run(instance._nodes['init'])
+        instance._nodes['saver'].restore(
+            instance._session, os.path.join(model_path, instance._checkpoint_file_name))
 
         _LOGGER.debug('Finished loading the model.')
         return instance
