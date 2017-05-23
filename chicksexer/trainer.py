@@ -25,7 +25,7 @@ __author__ = 'kensk8er'
 
 def main():
     # config
-    model_file_name = 'model.pkl'
+    model_file_name = 'test'
     log_path = os.path.join(_LOG_ROOT, 'model.log')
 
     # set default log level

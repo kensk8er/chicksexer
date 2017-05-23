@@ -135,10 +135,6 @@ class CharLSTM(object):
         for batch_id, (X_batch, y_batch) in enumerate(train_batch_generator):
             epoch = 1 + iteration // train_size
 
-            if batch_id % valid_interval == 0:
-                best_valid_loss = validate(
-                    X_valid, y_valid, seq_lens_valid, batch_id, best_valid_loss, summary_writer)
-
             if batch_id % summary_interval == 0:
                 summaries = session.run(nodes['summaries'])
                 summary_writer.add_summary(summaries, global_step=iteration)
@@ -165,6 +161,10 @@ class CharLSTM(object):
             if batch_id % stat_interval == 0:
                 losses, y_cat, y_cat_pred = show_train_stats(
                     epoch, iteration, summary_writer, losses, y_cat, y_cat_pred)
+
+            if batch_id % valid_interval == 0:
+                best_valid_loss = validate(
+                    X_valid, y_valid, seq_lens_valid, batch_id, best_valid_loss, summary_writer)
 
             if iteration > patience:
                 _LOGGER.info('Iteration is more than patience, finish training.')
