@@ -37,17 +37,17 @@ def main():
     set_log_path(_LOGGER, log_path)
 
     with open(_TRAIN_DATA_PATH, 'rb') as pickle_file:
-        name2prob = pickle.load(pickle_file)
+        name2proba = pickle.load(pickle_file)
 
     samples = list()
     y = list()
-    for name, prob in name2prob.items():
+    for name, proba in name2proba.items():
         samples.append(name)
-        y.append(prob)
+        y.append(proba)
 
     _LOGGER.info('Initialize CharLSTM object...')
     model = CharLSTM()
-    model.train(samples, y, os.path.join(_MODEL_ROOT, model_file_name))
+    model.train(samples, y, os.path.join(_MODEL_ROOT, model_file_name), profile=True)
 
 if __name__ == '__main__':
     main()

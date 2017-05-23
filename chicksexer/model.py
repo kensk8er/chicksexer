@@ -55,9 +55,9 @@ class CharLSTM(object):
         self._num_params = None
         self._session = None
 
-    def train(self, samples, y, model_path, batch_size=128, patience=819200, stat_interval=100,
+    def train(self, names, y, model_path, batch_size=128, patience=819200, stat_interval=100,
               valid_interval=1000, summary_interval=100, valid_size=0.1, profile=False):
-        """Train a language model on the samples of word IDs."""
+        """Train a gender classifier on the name/gender pairs."""
 
         def add_metric_summaries(summary_writer, mode, iteration, name2metric):
             """Add summary for metric."""
@@ -106,7 +106,7 @@ class CharLSTM(object):
             return best_loss
 
         # prepare inputs and other variables for the model
-        X = self._encode_chars(samples, fit=True)
+        X = self._encode_chars(names, fit=True)
         X_train, X_valid, y_train, y_valid = train_test_split(
             X, y, random_state=self._random_state, test_size=valid_size)
         X_valid, seq_lens_valid = self._add_padding(X_valid)

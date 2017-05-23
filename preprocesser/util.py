@@ -6,11 +6,11 @@ Define utility classes/functions here.
 __author__ = 'kensk8er'
 
 
-class Name2Prob(dict):
+class Name2Proba(dict):
     """Data Structure for storing mapping from name to gender probability."""
 
     def __init__(self):
-        super(Name2Prob, self).__init__()
+        super(Name2Proba, self).__init__()
         self._fixed_keys = set()
         self._key2count = dict()
 
@@ -24,18 +24,18 @@ class Name2Prob(dict):
 
         if not self.__contains__(key):
             self._key2count[key] = 1
-            super(Name2Prob, self).__setitem__(key, val)
+            super(Name2Proba, self).__setitem__(key, val)
         else:
             self._key2count[key] += 1
             if key not in self._fixed_keys:
                 # take incremental average
                 cur_val = self.__getitem__(key)
                 new_val = cur_val + (val - cur_val) / self._key2count[key]
-                super(Name2Prob, self).__setitem__(key, new_val)
+                super(Name2Proba, self).__setitem__(key, new_val)
 
     def set_fix_item(self, key, val):
         """Set item without taking incremental average and fix the value."""
-        super(Name2Prob, self).__setitem__(key, val)
+        super(Name2Proba, self).__setitem__(key, val)
         if key in self._key2count:
             self._key2count[key] += 1
         else:
