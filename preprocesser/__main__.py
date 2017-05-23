@@ -13,7 +13,7 @@ from preprocesser.dbpedia import gen_triples_from_file
 from preprocesser.us_stats import compute_gender_probs
 from preprocesser.util import Name2Prob
 
-_DATA_ROOT = os.path.join(os.path.join(PACKAGE_ROOT, os.path.pardir), 'data')
+_DATA_ROOT = os.path.join(PACKAGE_ROOT, os.path.pardir, 'data')
 _RAW_DATA_ROOT = os.path.join(_DATA_ROOT, 'raw')
 _PROCESSED_DATA_PATH = os.path.join(_DATA_ROOT, 'name2prob.pkl')
 
