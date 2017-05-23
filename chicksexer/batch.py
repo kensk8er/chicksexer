@@ -75,4 +75,4 @@ class BatchGenerator(object):
 
             X_second = deepcopy(self._X[:end_index])
             y_second = deepcopy(self._y[:end_index])
-            return X_first + X_second, y_first, y_second
+            return X_first + X_second, y_first + y_second
