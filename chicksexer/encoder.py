@@ -15,11 +15,12 @@ class CharEncoder(object):
     _start_char = '^'  # the character that represents the start of a name
     _end_char = '$'  # the character that represents the end of a name
 
-    def __init__(self):
+    def __init__(self, lower=True):
         self._label_encoder = LabelEncoder()
         self._start_char_id = None
         self._end_char_id = None
         self._fit = False
+        self._lower = lower
 
     def fit(self, samples):
         """
@@ -27,7 +28,10 @@ class CharEncoder(object):
 
         :param samples: samples of characters (e.g. sentences)
         """
-        characters = list(''.join(samples))
+        characters = ''.join(samples)
+        if self._lower:
+            characters = characters.lower()
+        characters = list(characters)
         characters.insert(0, self._start_char)
         characters.insert(1, self._end_char)
         self._label_encoder.fit(characters)
@@ -44,6 +48,8 @@ class CharEncoder(object):
         """
         encoded_samples = list()
         for sample in samples:
+            if self._lower:
+                sample = sample.lower()
             sample = '{}{}{}'.format(self._start_char, sample, self._end_char)
             encoded_samples.append(self._label_encoder.transform(list(sample)).tolist())
         return encoded_samples
