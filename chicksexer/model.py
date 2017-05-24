@@ -9,7 +9,6 @@ import pickle
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.model_selection import train_test_split
 from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
 from tensorflow.python.client import timeline
 
@@ -29,7 +28,6 @@ __author__ = 'kensk8er'
 class CharLSTM(object):
     """Character-based language modeling using LSTM."""
     _padding_id = 0  # TODO: 0 is used for actual character as well, which is a bit confusing...
-    _random_state = 0  # this is to make train/test split always return the same split
     _checkpoint_file_name = 'model.ckpt'
     _instance_file_name = 'instance.pkl'
     _tensorboard_dir = 'tensorboard.log'
@@ -55,9 +53,9 @@ class CharLSTM(object):
         self._num_params = None
         self._session = None
 
-    def train(self, names, y, model_path, batch_size=128, patience=819200, stat_interval=100,
-              valid_interval=1000, summary_interval=100, valid_size=0.1, valid_batch_size=2048,
-              profile=False):
+    def train(self, names_train, y_train, names_valid, y_valid, model_path, batch_size=128,
+              patience=819200, stat_interval=100, valid_interval=1000, summary_interval=100,
+              valid_batch_size=2048, profile=False):
         """Train a gender classifier on the name/gender pairs."""
 
         def add_metric_summaries(mode, iteration, name2metric):
@@ -111,9 +109,9 @@ class CharLSTM(object):
             return best_loss
 
         # prepare inputs and other variables for the model
-        X = self._encode_chars(names, fit=True)
-        X_train, X_valid, y_train, y_valid = train_test_split(
-            X, y, random_state=self._random_state, test_size=valid_size)
+        self._fit_encoder(names_train + names_valid)
+        X_train = self._encode_chars(names_train)
+        X_valid = self._encode_chars(names_valid)
         train_size = len(X_train)
         train_batch_generator = BatchGenerator(X_train, y_train, batch_size)
         best_valid_loss = np.float64('inf')
@@ -210,7 +208,7 @@ class CharLSTM(object):
         :param return_proba: output probability if set as True
         """
         nodes = self._nodes
-        X = self._encode_chars(names, fit=False)
+        X = self._encode_chars(names)
         X, seq_lens = self._add_padding(X)
         y_pred = self._session.run(
             nodes['y_pred'],
@@ -348,7 +346,7 @@ class CharLSTM(object):
             x.extend([self._padding_id for _ in range(pad_len)])
         return X, seq_lens
 
-    def _encode_chars(self, samples, fit):
+    def _encode_chars(self, samples, fit=False):
         """Convert samples of characters into encoded characters (character IDs)."""
         if fit:
             encoded_samples = self._encoder.fit_encode(samples)
@@ -356,6 +354,11 @@ class CharLSTM(object):
         else:
             encoded_samples = self._encoder.encode(samples)
         return encoded_samples
+
+    def _fit_encoder(self, samples):
+        """Fit the encoder to the given samples (of list of character IDs)."""
+        self._encoder.fit(samples)
+        self._vocab_size = self._encoder.vocab_size
 
     def _decode_chars(self, samples):
         """Convert samples of encoded character IDs into decoded characters."""
