@@ -98,7 +98,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
             _LOGGER.info('Hyper-parameters:\n{}'.format(json.dumps(parameters, indent=2)))
 
             # construct the model name
-            model_name = '_'.join('{}-{}'.format(key, val) for key, val in parameters.items())
+            model_name = '_'.join('{}-{:.4f}'.format(key, val) for key, val in parameters.items())
             model_path = os.path.join(_MODEL_ROOT, model_name)
             _LOGGER.info('Model name: {}'.format(model_name))
 
