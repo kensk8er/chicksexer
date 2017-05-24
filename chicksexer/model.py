@@ -113,7 +113,7 @@ class CharLSTM(object):
 
                 if iteration * 2 > patience:
                     patience = iteration * 2
-                    _LOGGER.info('Increased patience to {}'.format(patience))
+                    _LOGGER.info('Increased patience to {:,}'.format(patience))
 
             if run_metadata:
                 with open(_VALID_PROFILE_FILE, 'w') as file_:
