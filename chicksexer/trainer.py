@@ -77,28 +77,52 @@ def _get_training_data():
 
 def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
     """Perform random search over given hyper-parameter space."""
+
+    def sample_parameters(parameter_space):
+        parameters = OrderedDict()
+        for key, vals in parameter_space.items():
+            if key == 'rnn_dropouts':
+                sampled_val = list()
+                for _ in range(parameters['num_rnn_layers']):
+                    sampled_val.append(choice(vals))  # sample a value randomly
+            else:
+                sampled_val = choice(vals)  # sample a value randomly
+            parameters[key] = sampled_val
+        return parameters
+
+    def construct_model_name(parameters):
+        def format_precision(number):
+            if isinstance(number, float):
+                return '{:.5f}'.format(number).rstrip('0')
+            else:
+                return str(number)
+
+        def format_val(val):
+            if isinstance(val, list):
+                return '-'.join(format_precision(ele) for ele in val)
+            else:
+                return format_precision(val)
+
+        return '_'.join('{}-{}'.format(key, format_val(val)) for key, val in parameters.items())
+
     from chicksexer.model import CharLSTM  # import here after you configure logging
     searched_parameters = set()
     best_valid_score = np.float64('-inf')
     best_parameters = None
+    count = 1
 
     try:
         while True:
-            _LOGGER.info('\n\n---------- Start experimenting with a new parameter set ----------')
-            parameters = OrderedDict()
-            for key, vals in parameter_space.items():
-                if key == 'rnn_dropouts':
-                    sampled_val = list()
-                    for _ in range(parameters['num_rnn_layers']):
-                        sampled_val.append(choice(vals))  # sample a value randomly
-                else:
-                    sampled_val = choice(vals)  # sample a value randomly
-                parameters[key] = sampled_val
+            parameters = sample_parameters(parameter_space)
+            if str(parameters) in searched_parameters:
+                continue
 
+            _LOGGER.info('---------- ({}) Start experimenting with a new parameter set ----------\n'
+                         .format(count))
             _LOGGER.info('Hyper-parameters:\n{}'.format(json.dumps(parameters, indent=2)))
 
             # construct the model name
-            model_name = '_'.join('{}-{:.4f}'.format(key, val) for key, val in parameters.items())
+            model_name = construct_model_name(parameters)
             model_path = os.path.join(_MODEL_ROOT, model_name)
             _LOGGER.info('Model name: {}'.format(model_name))
 
@@ -107,7 +131,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
 
             _LOGGER.info('Started the train() method...')
             score = model.train(names_train, y_train, names_valid, y_valid, model_path)
-            searched_parameters.add(tuple(parameters.items()))
+            searched_parameters.add(str(parameters))
 
             if score > best_valid_score:
                 _LOGGER.info('Achieved best validation score so far in the search.')
@@ -115,7 +139,9 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
                 best_valid_score = score
                 best_parameters = parameters
 
-            _LOGGER.info('---------- Finished experimenting with the parameter set ----------\n\n')
+            _LOGGER.info('-------- ({}) Finished experimenting with the parameter set --------\n\n'
+                         .format(count))
+            count += 1
 
     except KeyboardInterrupt:
         _LOGGER.info('Random Search finishes because of Keyboard Interrupt.')
