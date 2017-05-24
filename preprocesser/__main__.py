@@ -6,7 +6,7 @@ import os
 
 import pickle
 
-from chicksexer.constant import CLASS2PROB, POSITIVE_CLASS, NEGATIVE_CLASS
+from chicksexer._constant import CLASS2PROB, POSITIVE_CLASS, NEGATIVE_CLASS
 from preprocesser import PACKAGE_ROOT
 from preprocesser.gender_csv import gen_name_gender_from_csv
 from preprocesser.dbpedia import gen_triples_from_file

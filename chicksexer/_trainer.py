@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from chicksexer import PACKAGE_ROOT
-from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
+from chicksexer._util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 
 _LOG_PATH = os.path.join(PACKAGE_ROOT, os.path.pardir, 'logs', 'trainer.log')
@@ -105,7 +105,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
 
         return '_'.join('{}-{}'.format(key, format_val(val)) for key, val in parameters.items())
 
-    from chicksexer.model import CharLSTM  # import here after you configure logging
+    from chicksexer._classifier import CharLSTM  # import here after you configure logging
     searched_parameters = set()
     best_valid_score = np.float64('-inf')
     best_parameters = None

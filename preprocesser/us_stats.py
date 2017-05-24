@@ -9,7 +9,7 @@ from glob import glob
 
 import regex
 
-from chicksexer.constant import NEGATIVE_CLASS, POSITIVE_CLASS
+from chicksexer._constant import NEGATIVE_CLASS, POSITIVE_CLASS
 
 _CLASS_MAP = {'M': POSITIVE_CLASS, 'F': NEGATIVE_CLASS}
 

@@ -4,7 +4,7 @@ Module used for parsing CSV files of name/gender data.
 """
 import csv
 
-from chicksexer.constant import NEUTRAL_CLASS, POSITIVE_CLASS, NEGATIVE_CLASS
+from chicksexer._constant import NEUTRAL_CLASS, POSITIVE_CLASS, NEGATIVE_CLASS
 
 _NAME_COLUMN = 'name'
 _FIRST_NAME_COLUMN = 'first name'

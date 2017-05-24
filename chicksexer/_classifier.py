@@ -13,10 +13,10 @@ from sklearn.metrics import accuracy_score, classification_report
 from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
 from tensorflow.python.client import timeline
 
-from chicksexer.batch import BatchGenerator
-from chicksexer.constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
-from chicksexer.encoder import CharEncoder
-from chicksexer.util import get_logger
+from chicksexer._batch import BatchGenerator
+from chicksexer._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
+from chicksexer._encoder import CharEncoder
+from chicksexer._util import get_logger
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'
@@ -234,12 +234,13 @@ class CharLSTM(object):
             nodes['y_pred'],
             feed_dict={nodes['X']: X, nodes['seq_lens']: seq_lens, nodes['is_train']: False})
 
-        # list isn't returned when len(X) == 1
-        if not isinstance(y_pred, list):
+        # np.ndarray isn't returned when len(X) == 1
+        if not isinstance(y_pred, np.ndarray):
             y_pred = [y_pred]
 
         if return_proba:
-            return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: 1 - proba} for proba in y_pred]
+            return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
+                    for proba in y_pred]
         else:
             return self._categorize_y(y_pred)
 
