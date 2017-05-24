@@ -11,6 +11,7 @@ from random import choice
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+from tensorflow.python.framework.errors_impl import InvalidArgumentError
 
 from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
@@ -144,6 +145,10 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
         _LOGGER.info('Random Search finishes because of Keyboard Interrupt.')
         _LOGGER.info('Best Validation Score: {:.3f}'.format(best_valid_score))
         _LOGGER.info('Best Hyper-parameters:\n{}'.format(json.dumps(best_parameters, indent=2)))
+
+    except InvalidArgumentError as error:
+        _LOGGER.exception(error)
+        _LOGGER.info('-------- ({}) Skip the parameter set --------\n\n'.format(count))
 
 
 if __name__ == '__main__':
