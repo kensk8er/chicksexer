@@ -7,8 +7,8 @@ import warnings
 from typing import Union
 
 from chicksexer import PACKAGE_ROOT
-from chicksexer._classifier import CharLSTM
-from chicksexer._util import get_logger
+from ._classifier import CharLSTM
+from ._util import get_logger
 
 _MODEL_PATH = os.path.join(PACKAGE_ROOT, 'models')
 _model = None

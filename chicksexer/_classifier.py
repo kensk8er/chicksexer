@@ -13,10 +13,10 @@ from sklearn.metrics import accuracy_score, classification_report
 from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
 from tensorflow.python.client import timeline
 
-from chicksexer._batch import BatchGenerator
-from chicksexer._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
-from chicksexer._encoder import CharEncoder
-from chicksexer._util import get_logger
+from ._batch import BatchGenerator
+from ._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
+from ._encoder import CharEncoder
+from ._util import get_logger
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'

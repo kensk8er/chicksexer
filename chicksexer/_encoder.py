@@ -2,8 +2,6 @@
 """
 Implement Encoder classes that encode characters into character IDs.
 """
-import pickle
-
 import regex
 from sklearn.preprocessing import LabelEncoder
 

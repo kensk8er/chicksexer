@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from chicksexer import PACKAGE_ROOT
-from chicksexer._util import set_default_log_level, set_log_level, get_logger, \
+from ._util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 
 _LOG_PATH = os.path.join(PACKAGE_ROOT, os.path.pardir, 'logs', 'trainer.log')

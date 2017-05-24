@@ -4,11 +4,11 @@ chicksexer package
 """
 import os
 
-from chicksexer._version import __version__
+from ._version import __version__
 
 PACKAGE_ROOT = os.path.dirname(os.path.realpath(__file__))
 
 __author__ = 'kensk8er'
 
 # define modules/functions to expose under here (they might need PACKAGE_ROOT)
-from chicksexer.api import predict_genders, predict_gender
+from .api import predict_genders, predict_gender
