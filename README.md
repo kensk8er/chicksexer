@@ -1,11 +1,9 @@
 chicksexer - Python package for gender classification
 =================================================================
 
-TODO
+`chicksexer` is a package 
 
-Features
---------
-TODO
+![Chicksexer](images/chicksexer.jpg?raw=true "Title")
 
 Installation
 ------------
@@ -18,11 +16,4 @@ You can install `chicksexer` by:
 
 ```pip install chicksexer```
 
-This installs `chicksexer` package to your Python, as well as `chicksexer` command and add it to your `PATH`.
-
 `chicksexer` also depends on `tensorflow` package. In default, it tries to install the CPU-only version of `tensorflow`. If you want to use GPU, you need to install `tensorflow` with GPU support by yourself. (C.f. [Installing Tensorflow](https://www.tensorflow.org/install/))
-
-
-Usage
------
-TODO
