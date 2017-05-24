@@ -4,6 +4,7 @@ Implement Encoder classes that encode characters into character IDs.
 """
 import pickle
 
+import regex
 from sklearn.preprocessing import LabelEncoder
 
 __author__ = 'kensk8er'
@@ -29,8 +30,7 @@ class CharEncoder(object):
         :param samples: samples of characters (e.g. sentences)
         """
         characters = ''.join(samples)
-        if self._lower:
-            characters = characters.lower()
+        characters = self._clean_characters(characters)
         characters = list(characters)
         characters.insert(0, self._start_char)
         characters.insert(1, self._end_char)
@@ -48,8 +48,7 @@ class CharEncoder(object):
         """
         encoded_samples = list()
         for sample in samples:
-            if self._lower:
-                sample = sample.lower()
+            sample = self._clean_characters(sample)
             sample = '{}{}{}'.format(self._start_char, sample, self._end_char)
             encoded_samples.append(self._label_encoder.transform(list(sample)).tolist())
         return encoded_samples
@@ -109,3 +108,13 @@ class CharEncoder(object):
     def is_fit(self):
         """True if the encoder is already fit, else False."""
         return self._fit
+
+    def _clean_characters(self, characters):
+        """Clean characters (e.g. convert \t to a space)."""
+        if self._lower:
+            characters = characters.lower()
+
+        characters = regex.sub(r'\t|\s+|\u200d', ' ', characters)
+        characters = regex.sub(r'`', "'", characters)
+        characters = regex.sub(r'–', "-", characters)
+        return characters
