@@ -66,15 +66,19 @@ class CharLSTM(object):
             summary_writer.add_summary(metric_summary, global_step=iteration)
 
         def show_train_stats(epoch, iteration, losses, y_cat, y_cat_pred):
+            # compute mean statistics
             loss = np.mean(losses)
             accuracy = accuracy_score(y_cat, y_cat_pred)
-            _LOGGER.info('Epoch={}, Iter={:,}, Mean Training Loss={:.3f}, Accuracy={:.3f}'
-                         .format(epoch, iteration, loss, accuracy))
-            add_metric_summaries('train', iteration, {'cross_entropy': loss, 'accuracy': accuracy})
+            score = accuracy - loss
+
+            _LOGGER.info('Epoch={}, Iter={:,}, Mean Training Loss={:.3f}, Accuracy={:.3f}, '
+                         'Accuracy - Loss={:.3f}'.format(epoch, iteration, loss, accuracy, score))
+            add_metric_summaries('train', iteration, {'cross_entropy': loss, 'accuracy': accuracy,
+                                                      'accuracy - loss': score})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
             return list(), list(), list()
 
-        def validate(epoch, iteration, X, y, best_loss):
+        def validate(epoch, iteration, X, y, best_score):
             """Validate the model on validation set."""
             batch_generator = BatchGenerator(X, y, batch_size=valid_batch_size, valid=True)
             losses, y_cat, y_cat_pred = list(), list(), list()
@@ -89,24 +93,28 @@ class CharLSTM(object):
                 y_cat.extend(self._categorize_y(y_batch))
                 y_cat_pred.extend(self._categorize_y(y_pred))
 
+            # compute mean statistics
             loss = np.mean(losses)
             accuracy = accuracy_score(y_cat, y_cat_pred)
-            _LOGGER.info('Epoch={}, Iter={:,}, Validation Loss={:.3f}, Accuracy={:.3f}'
-                         .format(epoch, iteration, loss, accuracy))
-            add_metric_summaries('valid', iteration, {'cross_entropy': loss, 'accuracy': accuracy})
+            score = accuracy - loss
+
+            _LOGGER.info('Epoch={}, Iter={:,}, Validation Loss={:.3f}, Accuracy={:.3f}, '
+                         'Accuracy - Loss={:.3f}'.format(epoch, iteration, loss, accuracy, score))
+            add_metric_summaries('valid', iteration, {'cross_entropy': loss, 'accuracy': accuracy,
+                                                      'accuracy - loss': score})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
 
-            if loss < best_loss:
-                _LOGGER.info('Best loss so far, save the model.')
+            if score > best_score:
+                _LOGGER.info('Best score (accuracy - loss) so far, save the model.')
                 self._save(model_path, session)
-                best_loss = loss
+                best_score = score
 
             if run_metadata:
                 with open(_VALID_PROFILE_FILE, 'w') as file_:
                     file_.write(
                         timeline.Timeline(run_metadata.step_stats).generate_chrome_trace_format())
 
-            return best_loss
+            return best_score
 
         # prepare inputs and other variables for the model
         self._fit_encoder(names_train + names_valid)
@@ -114,7 +122,7 @@ class CharLSTM(object):
         X_valid = self._encode_chars(names_valid)
         train_size = len(X_train)
         train_batch_generator = BatchGenerator(X_train, y_train, batch_size)
-        best_valid_loss = np.float64('inf')
+        best_valid_score = np.float64('-inf')
         losses = list()
         y_cat = list()
         y_cat_pred = list()
@@ -165,14 +173,15 @@ class CharLSTM(object):
                     epoch, iteration, losses, y_cat, y_cat_pred)
 
             if batch_id % valid_interval == 0:
-                best_valid_loss = validate(epoch, iteration, X_valid, y_valid, best_valid_loss)
+                best_valid_score = validate(epoch, iteration, X_valid, y_valid, best_valid_score)
 
             if iteration > patience:
                 _LOGGER.info('Iteration is more than patience, finish training.')
                 break
 
         _LOGGER.info('Finished fitting the model.')
-        _LOGGER.info('Best Validation Cross-entropy Error: {:.3f}'.format(best_valid_loss))
+        _LOGGER.info('Best Validation Score (Accuracy - Cross-entropy Loss) Error: {:.3f}'
+            .format(best_valid_score))
 
         # close the session
         session.close()
