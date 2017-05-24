@@ -5,6 +5,7 @@ This module implements the core ML algorithm of gender classification.
 from copy import copy
 import os
 import pickle
+from time import time
 
 import numpy as np
 import tensorflow as tf
@@ -54,9 +55,10 @@ class CharLSTM(object):
         self._session = None
 
     def train(self, names_train, y_train, names_valid, y_valid, model_path, batch_size=128,
-              patience=819200, stat_interval=100, valid_interval=1000, summary_interval=100,
+              patience=1024000, stat_interval=100, valid_interval=1000, summary_interval=100,
               valid_batch_size=2048, profile=False):
         """Train a gender classifier on the name/gender pairs."""
+        start_time = time()
 
         def add_metric_summaries(mode, iteration, name2metric):
             """Add summary for metric."""
@@ -78,7 +80,7 @@ class CharLSTM(object):
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
             return list(), list(), list()
 
-        def validate(epoch, iteration, X, y, best_score):
+        def validate(epoch, iteration, X, y, best_score, patience):
             """Validate the model on validation set."""
             batch_generator = BatchGenerator(X, y, batch_size=valid_batch_size, valid=True)
             losses, y_cat, y_cat_pred = list(), list(), list()
@@ -105,16 +107,20 @@ class CharLSTM(object):
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
 
             if score > best_score:
-                _LOGGER.info('Best score (accuracy - loss) so far, save the model.')
+                _LOGGER.info('Best score (Accuracy - Loss) so far, save the model.')
                 self._save(model_path, session)
                 best_score = score
+
+                if iteration * 2 > patience:
+                    patience = iteration * 2
+                    _LOGGER.info('Increased patience to {}'.format(patience))
 
             if run_metadata:
                 with open(_VALID_PROFILE_FILE, 'w') as file_:
                     file_.write(
                         timeline.Timeline(run_metadata.step_stats).generate_chrome_trace_format())
 
-            return best_score
+            return best_score, patience
 
         # prepare inputs and other variables for the model
         self._fit_encoder(names_train + names_valid)
@@ -173,7 +179,8 @@ class CharLSTM(object):
                     epoch, iteration, losses, y_cat, y_cat_pred)
 
             if batch_id % valid_interval == 0:
-                best_valid_score = validate(epoch, iteration, X_valid, y_valid, best_valid_score)
+                best_valid_score, patience = validate(
+                    epoch, iteration, X_valid, y_valid, best_valid_score, patience)
 
             if iteration > patience:
                 _LOGGER.info('Iteration is more than patience, finish training.')
@@ -181,10 +188,14 @@ class CharLSTM(object):
 
         _LOGGER.info('Finished fitting the model.')
         _LOGGER.info('Best Validation Score (Accuracy - Cross-entropy Loss) Error: {:.3f}'
-            .format(best_valid_score))
+                     .format(best_valid_score))
 
         # close the session
         session.close()
+
+        end_time = time()
+        _LOGGER.info('Took {:,} seconds to train the model.'.format(int(end_time - start_time)))
+        return best_valid_score
 
     @classmethod
     def load(cls, model_path):
