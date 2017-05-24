@@ -12,13 +12,12 @@ from random import choice
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from chicksexer import PACKAGE_ROOT
 from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 
-_LOG_PATH = os.path.join(PACKAGE_ROOT, os.path.pardir, 'logs', 'trainer.log')
-_MODEL_ROOT = os.path.join(PACKAGE_ROOT, os.path.pardir, 'models')
-_TRAIN_DATA_PATH = os.path.join(PACKAGE_ROOT, os.path.pardir, 'data', 'name2prob.pkl')
+_LOG_PATH = os.path.join('logs', 'trainer.log')
+_MODEL_ROOT = 'models'
+_TRAIN_DATA_PATH = os.path.join('data', 'name2prob.pkl')
 
 # Training constants
 _RANDOM_STATE = 0  # this is to make train/test split always return the same split
