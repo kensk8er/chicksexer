@@ -73,8 +73,8 @@ class CharLSTM(object):
             accuracy = accuracy_score(y_cat, y_cat_pred)
             score = accuracy - loss
 
-            _LOGGER.info('Epoch={}, Iter={:,}, Mean Training Loss={:.3f}, Accuracy={:.3f}, '
-                         'Accuracy - Loss={:.3f}'.format(epoch, iteration, loss, accuracy, score))
+            _LOGGER.info('Epoch={}, Iter={:,}, Mean Training Loss={:.4f}, Accuracy={:.4f}, '
+                         'Accuracy - Loss={:.4f}'.format(epoch, iteration, loss, accuracy, score))
             add_metric_summaries('train', iteration, {'cross_entropy': loss, 'accuracy': accuracy,
                                                       'accuracy - loss': score})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
@@ -100,8 +100,8 @@ class CharLSTM(object):
             accuracy = accuracy_score(y_cat, y_cat_pred)
             score = accuracy - loss
 
-            _LOGGER.info('Epoch={}, Iter={:,}, Validation Loss={:.3f}, Accuracy={:.3f}, '
-                         'Accuracy - Loss={:.3f}'.format(epoch, iteration, loss, accuracy, score))
+            _LOGGER.info('Epoch={}, Iter={:,}, Validation Loss={:.4f}, Accuracy={:.4f}, '
+                         'Accuracy - Loss={:.4f}'.format(epoch, iteration, loss, accuracy, score))
             add_metric_summaries('valid', iteration, {'cross_entropy': loss, 'accuracy': accuracy,
                                                       'accuracy - loss': score})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
@@ -187,7 +187,7 @@ class CharLSTM(object):
                 break
 
         _LOGGER.info('Finished fitting the model.')
-        _LOGGER.info('Best Validation Score (Accuracy - Cross-entropy Loss) Error: {:.3f}'
+        _LOGGER.info('Best Validation Score (Accuracy - Cross-entropy Loss): {:.4f}'
                      .format(best_valid_score))
 
         # close the session
