@@ -3,10 +3,12 @@
 Main module of preprocesser package. This module will be executed by `python -m preprocesser`.
 """
 import os
-
 import pickle
 
+import numpy as np
+
 from chicksexer._constant import CLASS2PROB, POSITIVE_CLASS, NEGATIVE_CLASS
+from chicksexer.util import get_logger
 from preprocesser import PACKAGE_ROOT
 from preprocesser.gender_csv import gen_name_gender_from_csv
 from preprocesser.dbpedia import gen_triples_from_file
@@ -15,7 +17,12 @@ from preprocesser.util import Name2Proba
 
 _DATA_ROOT = os.path.join(PACKAGE_ROOT, os.path.pardir, 'data')
 _RAW_DATA_ROOT = os.path.join(_DATA_ROOT, 'raw')
-_PROCESSED_DATA_PATH = os.path.join(_DATA_ROOT, 'name2prob.pkl')
+_PROCESSED_DATA_PATH = os.path.join(_DATA_ROOT, 'name2proba.pkl')
+
+_NEUTRAL_NAME_AUGMENTATION_NUM = 100000
+_FEMALE_NAME_AUGMENTATION_NUM = 85000
+
+_LOGGER = get_logger(__name__)
 
 __author__ = 'kensk8er'
 
@@ -73,12 +80,54 @@ def _process_common_names(name2proba):
     return name2proba
 
 
+def _augment_full_names(name2proba, gender):
+    """Augment neutral names"""
+    if gender == 'neutral':
+        augmentation_num = _NEUTRAL_NAME_AUGMENTATION_NUM
+        low_proba = 1. / 3
+        high_proba = 2. / 3
+    elif gender == 'female':
+        augmentation_num = _FEMALE_NAME_AUGMENTATION_NUM
+        low_proba = float('-inf')
+        high_proba = 1. / 3
+    else:
+        raise ValueError('Invalid argument gender={}'.format(gender))
+
+    neutral_names = [name for name, prob in name2proba.items()
+                     if low_proba < prob < high_proba and ' ' not in name]
+    multiple = augmentation_num // len(neutral_names)
+
+    with open(os.path.join(_DATA_ROOT, 'surname2proba.pkl'), 'rb') as pickle_file:
+        surname2proba = pickle.load(pickle_file)
+        surnames, surname_probas = list(), list()
+        for surname, proba in surname2proba.items():
+            surnames.append(surname)
+            surname_probas.append(proba)
+
+    for neutral_name in neutral_names:
+        proba = name2proba[neutral_name]
+        sampled_surnames = np.random.choice(surnames, multiple, p=surname_probas)
+        for surname in sampled_surnames:
+            full_name = '{} {}'.format(neutral_name, surname)
+            name2proba[full_name] = proba
+
+    return name2proba
+
+
 def main():
     name2proba = Name2Proba()
+    _LOGGER.info('Processing Dbpedia...')
     name2proba = _process_dbpedia(name2proba)
+    _LOGGER.info('Processing CSVs...')
     name2proba = _process_csv(name2proba)
+    _LOGGER.info('Processing US Stats...')
     name2proba = _process_us_stats(name2proba)
+    _LOGGER.info('Processing Common Names...')
     name2proba = _process_common_names(name2proba)
+    _LOGGER.info('Augmenting Neutral Names...')
+    name2proba = _augment_full_names(name2proba, 'neutral')
+    _LOGGER.info('Augmenting Female Names...')
+    name2proba = _augment_full_names(name2proba, 'female')
 
     with open(_PROCESSED_DATA_PATH, 'wb') as pickle_file:
         pickle.dump(dict(name2proba), pickle_file)  # save as a normal dict object

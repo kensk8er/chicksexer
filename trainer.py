@@ -18,7 +18,7 @@ from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
 
 _LOG_PATH = os.path.join('logs', 'trainer.log')
 _MODEL_ROOT = 'models'
-_TRAIN_DATA_PATH = os.path.join('data', 'name2prob.pkl')
+_TRAIN_DATA_PATH = os.path.join('data', 'name2proba.pkl')
 
 # Training constants
 _RANDOM_STATE = 0  # this is to make train/test split always return the same split
