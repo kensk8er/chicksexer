@@ -16,7 +16,7 @@ from tensorflow.python.client import timeline
 from ._batch import BatchGenerator
 from ._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
 from ._encoder import CharEncoder
-from ._util import get_logger
+from .util import get_logger
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'

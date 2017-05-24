@@ -4,9 +4,7 @@ Script for training a model.
 """
 import json
 import os
-
 import pickle
-
 import logging
 from collections import OrderedDict
 from random import choice
@@ -15,7 +13,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from chicksexer import PACKAGE_ROOT
-from ._util import set_default_log_level, set_log_level, get_logger, \
+from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 
 _LOG_PATH = os.path.join(PACKAGE_ROOT, os.path.pardir, 'logs', 'trainer.log')
