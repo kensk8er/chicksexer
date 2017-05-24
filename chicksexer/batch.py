@@ -21,7 +21,7 @@ class BatchGenerator(object):
             do_something_on_batch(X_batch, y_batch)
     """
 
-    def __init__(self, X, y, batch_size, shuffle=True):
+    def __init__(self, X, y, batch_size, shuffle=True, valid=False):
         """
         Constructor
 
@@ -29,6 +29,7 @@ class BatchGenerator(object):
         :param y: list of labels (list of probability (of name being a male name))
         :param batch_size: the size of samples in a batch
         :param shuffle: if True, shuffle the data in every new epoch
+        :param valid: if True, finish iterating on the data after one pass
         """
         assert isinstance(X, list), 'Invalid argument type type(X) = {}'.format(type(X))
         assert isinstance(y, list), 'Invalid argument type type(y) = {}'.format(type(y))
@@ -42,7 +43,9 @@ class BatchGenerator(object):
         self._batch_id = 0
         self._batch_size = batch_size
         self._shuffle = shuffle
+        self._valid = valid
         self._data_size = len(self._X)
+        self._finish = False
 
     def __iter__(self):
         return self
@@ -53,6 +56,9 @@ class BatchGenerator(object):
 
         :return: a batch of X, y
         """
+        if self._finish:
+            raise StopIteration
+
         X, y = self._gen_batch(self._batch_id, self._batch_size, self._data_size)
         self._batch_id += 1
         return X, y
@@ -68,6 +74,10 @@ class BatchGenerator(object):
         else:  # executing here means you have gone over X and y already
             X_first = deepcopy(self._X[start_index:])
             y_first = deepcopy(self._y[start_index:])
+
+            if self._valid:
+                self._finish = True
+                return X_first, y_first
 
             # shuffle X and y after going over them if shuffle is True
             if self._shuffle:

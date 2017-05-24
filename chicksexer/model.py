@@ -56,41 +56,46 @@ class CharLSTM(object):
         self._session = None
 
     def train(self, names, y, model_path, batch_size=128, patience=819200, stat_interval=100,
-              valid_interval=1000, summary_interval=100, valid_size=0.1, profile=False):
+              valid_interval=1000, summary_interval=100, valid_size=0.1, valid_batch_size=2048,
+              profile=False):
         """Train a gender classifier on the name/gender pairs."""
 
-        def add_metric_summaries(summary_writer, mode, iteration, name2metric):
+        def add_metric_summaries(mode, iteration, name2metric):
             """Add summary for metric."""
             metric_summary = tf.Summary()
             for name, metric in name2metric.items():
                 metric_summary.value.add(tag='{}_{}'.format(mode, name), simple_value=metric)
             summary_writer.add_summary(metric_summary, global_step=iteration)
 
-        def show_train_stats(epoch, iteration, summary_writer, losses, y_cat, y_cat_pred):
+        def show_train_stats(epoch, iteration, losses, y_cat, y_cat_pred):
             loss = np.mean(losses)
             accuracy = accuracy_score(y_cat, y_cat_pred)
             _LOGGER.info('Epoch={}, Iter={:,}, Mean Training Loss={:.3f}, Accuracy={:.3f}'
                          .format(epoch, iteration, loss, accuracy))
-            add_metric_summaries(summary_writer, 'train', iteration,
-                                 {'cross_entropy': loss, 'accuracy': accuracy})
+            add_metric_summaries('train', iteration, {'cross_entropy': loss, 'accuracy': accuracy})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
             return list(), list(), list()
 
-        def validate(X, y, seq_lens, batch_id, best_loss, summary_writer):
+        def validate(epoch, iteration, X, y, best_loss):
             """Validate the model on validation set."""
-            loss, y_pred = session.run(
-                [nodes['loss'], nodes['y_pred']],
-                feed_dict={nodes['X']: X, nodes['y']: y, nodes['seq_lens']: seq_lens,
-                           nodes['is_train']: False},
-                options=run_options, run_metadata=run_metadata)
+            batch_generator = BatchGenerator(X, y, batch_size=valid_batch_size, valid=True)
+            losses, y_cat, y_cat_pred = list(), list(), list()
+            for X_batch, y_batch in batch_generator:
+                X_batch, seq_lens = self._add_padding(X_batch)
+                loss, y_pred = session.run(
+                    [nodes['loss'], nodes['y_pred']],
+                    feed_dict={nodes['X']: X_batch, nodes['y']: y_batch,
+                               nodes['seq_lens']: seq_lens, nodes['is_train']: False},
+                    options=run_options, run_metadata=run_metadata)
+                losses.append(loss)
+                y_cat.extend(self._categorize_y(y_batch))
+                y_cat_pred.extend(self._categorize_y(y_pred))
 
-            y_cat = self._categorize_y(y)
-            y_cat_pred = self._categorize_y(y_pred)
+            loss = np.mean(losses)
             accuracy = accuracy_score(y_cat, y_cat_pred)
             _LOGGER.info('Epoch={}, Iter={:,}, Validation Loss={:.3f}, Accuracy={:.3f}'
                          .format(epoch, iteration, loss, accuracy))
-            add_metric_summaries(summary_writer, 'valid', iteration,
-                                 {'cross_entropy': loss, 'accuracy': accuracy})
+            add_metric_summaries('valid', iteration, {'cross_entropy': loss, 'accuracy': accuracy})
             _LOGGER.info('\n{}'.format(classification_report(y_cat, y_cat_pred, digits=3)))
 
             if loss < best_loss:
@@ -109,7 +114,6 @@ class CharLSTM(object):
         X = self._encode_chars(names, fit=True)
         X_train, X_valid, y_train, y_valid = train_test_split(
             X, y, random_state=self._random_state, test_size=valid_size)
-        X_valid, seq_lens_valid = self._add_padding(X_valid)
         train_size = len(X_train)
         train_batch_generator = BatchGenerator(X_train, y_train, batch_size)
         best_valid_loss = np.float64('inf')
@@ -160,11 +164,10 @@ class CharLSTM(object):
 
             if batch_id % stat_interval == 0:
                 losses, y_cat, y_cat_pred = show_train_stats(
-                    epoch, iteration, summary_writer, losses, y_cat, y_cat_pred)
+                    epoch, iteration, losses, y_cat, y_cat_pred)
 
             if batch_id % valid_interval == 0:
-                best_valid_loss = validate(
-                    X_valid, y_valid, seq_lens_valid, batch_id, best_valid_loss, summary_writer)
+                best_valid_loss = validate(epoch, iteration, X_valid, y_valid, best_valid_loss)
 
             if iteration > patience:
                 _LOGGER.info('Iteration is more than patience, finish training.')
