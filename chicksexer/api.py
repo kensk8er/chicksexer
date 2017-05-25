@@ -11,7 +11,7 @@ import regex
 
 from chicksexer import PACKAGE_ROOT
 from ._encoder import UnseenCharacterException
-from ._constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS
+from .constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS
 from ._classifier import CharLSTM
 from .util import get_logger
 

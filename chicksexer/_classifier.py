@@ -14,7 +14,7 @@ from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
 from tensorflow.python.client import timeline
 
 from ._batch import BatchGenerator
-from ._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
+from .constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
 from ._encoder import CharEncoder
 from .util import get_logger
 

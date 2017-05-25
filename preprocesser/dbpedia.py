@@ -4,7 +4,7 @@ Dbpedia related functions are defined here.
 """
 import regex
 
-from chicksexer._constant import POSITIVE_CLASS, NEGATIVE_CLASS
+from chicksexer.constant import POSITIVE_CLASS, NEGATIVE_CLASS
 
 _CLASS_MAP = {'male': POSITIVE_CLASS, 'female': NEGATIVE_CLASS}
 _TRIPLE_LINE_REGEX = regex.compile(
