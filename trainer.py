@@ -11,13 +11,14 @@ from random import choice
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+from tensorflow.python.framework.errors_impl import InvalidArgumentError
 
 from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 
 _LOG_PATH = os.path.join('logs', 'trainer.log')
 _MODEL_ROOT = 'models'
-_TRAIN_DATA_PATH = os.path.join('data', 'name2prob.pkl')
+_TRAIN_DATA_PATH = os.path.join('data', 'name2proba.pkl')
 
 # Training constants
 _RANDOM_STATE = 0  # this is to make train/test split always return the same split
@@ -35,8 +36,8 @@ def _get_parameter_space():
     parameter_space.update({'rnn_size': [32 * i for i in range(1, 31)]})
     parameter_space.update({'num_rnn_layers': [1, 2, 3]})
     parameter_space.update({'learning_rate': [0.0001 * (2 ** i) for i in range(11)]})
-    parameter_space.update({'rnn_dropouts': [0.2 * i for i in range(1, 6)]})
-    parameter_space.update({'final_dropout': [0.2 * i for i in range(1, 6)]})
+    parameter_space.update({'rnn_dropouts': [0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]})
+    parameter_space.update({'final_dropout': [0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]})
     return parameter_space
 
 
@@ -144,6 +145,10 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
         _LOGGER.info('Random Search finishes because of Keyboard Interrupt.')
         _LOGGER.info('Best Validation Score: {:.3f}'.format(best_valid_score))
         _LOGGER.info('Best Hyper-parameters:\n{}'.format(json.dumps(best_parameters, indent=2)))
+
+    except InvalidArgumentError as error:
+        _LOGGER.exception(error)
+        _LOGGER.info('-------- ({}) Skip the parameter set --------\n\n'.format(count))
 
 
 if __name__ == '__main__':

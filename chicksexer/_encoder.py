@@ -8,6 +8,10 @@ from sklearn.preprocessing import LabelEncoder
 __author__ = 'kensk8er'
 
 
+class UnseenCharacterException(Exception):
+    """Thrown when the encoder tries to encode unseen characters."""
+
+
 class CharEncoder(object):
     """Encode characters into character IDs."""
 
@@ -48,7 +52,14 @@ class CharEncoder(object):
         for sample in samples:
             sample = self._clean_characters(sample)
             sample = '{}{}{}'.format(self._start_char, sample, self._end_char)
-            encoded_samples.append(self._label_encoder.transform(list(sample)).tolist())
+
+            try:
+                encoded_samples.append(self._label_encoder.transform(list(sample)).tolist())
+            except ValueError as exception:
+                unseen_chars = regex.search(
+                    r'y contains new labels: (.*)$', exception.args[0]).groups()[0]
+                raise UnseenCharacterException('Unseen characters: {}'.format(unseen_chars))
+
         return encoded_samples
 
     def decode(self, samples):

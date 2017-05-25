@@ -1,11 +1,51 @@
 chicksexer - Python package for gender classification
 =================================================================
 
-TODO
+![Chicksexer](images/chicksexer.jpg?raw=true "Title")
 
-Features
---------
-TODO
+`chicksexer` is a Python package that performs **gender classification**. It receives a string of person name and returns the probability estimate of its gender as follows:
+
+```python
+>>> from chicksexer import predict_gender
+>>> predict_gender('John Smith')
+{'female': 0.0027230381965637207, 'male': 0.9972769618034363}
+```
+
+Several merits of using the classifier instead of simply looking up known male/female names are:
+
+* Sometimes simple name lookup does not work. For instance, "Ryu" is likely to be a male name if it's followed by a Japanese surname, whereas it can be a Korean surname as well, then it's gender neutral.
+* Can predict the gender of a name that does not exist in the list of male/female names.
+* Can deal with a typo in a name relatively easily.
+
+You can also get an estimate as a simple string as follows:
+
+```python
+>>> predict_gender('Oliver Butterfield', return_proba=False)
+'male'
+>>> predict_gender('Naila Ata', return_proba=False)
+'female'
+>>> predict_gender('Saldivar Anderson', return_proba=False)
+'neutral'
+>>> predict_gender('Ponyo', return_proba=False)  # name of a character from the film
+'neutral'
+>>> predict_gender('Ponya', return_proba=False)  # modify the name such that it sounds like a female name
+'female'
+>>> predict_gender('Ryu Ito', return_proba=False)  # Ryu here is a Japanese first name
+'male'
+>>> predict_gender('Ryu Seo-yeon', return_proba=False)  # Ryu is a Korean surname, Seo-yeon is a popular first name for girls
+'female'
+```
+
+If you want to predict the gender of multiple names, use `predict_genders` (plural) function instead:
+
+```python
+>>> from chicksexer import predict_genders
+>>> predict_genders(['Ichiro Suzuki', 'Haruki Murakami'])
+[{'female': 3.039836883544922e-05, 'male': 0.9999696016311646},
+ {'female': 1.2040138244628906e-05, 'male': 0.9999879598617554}]
+>>> predict_genders(['Ichiro Suzuki', 'Haruki Murakami'], return_proba=False)
+['male', 'male']
+```
 
 Installation
 ------------
@@ -18,11 +58,4 @@ You can install `chicksexer` by:
 
 ```pip install chicksexer```
 
-This installs `chicksexer` package to your Python, as well as `chicksexer` command and add it to your `PATH`.
-
 `chicksexer` also depends on `tensorflow` package. In default, it tries to install the CPU-only version of `tensorflow`. If you want to use GPU, you need to install `tensorflow` with GPU support by yourself. (C.f. [Installing Tensorflow](https://www.tensorflow.org/install/))
-
-
-Usage
------
-TODO
