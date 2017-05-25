@@ -56,6 +56,8 @@ Installation
 
 You can install `chicksexer` by:
 
-```pip install chicksexer```
+```bash
+pip install chicksexer
+```
 
 `chicksexer` also depends on `tensorflow` package. In default, it tries to install the CPU-only version of `tensorflow`. If you want to use GPU, you need to install `tensorflow` with GPU support by yourself. (C.f. [Installing Tensorflow](https://www.tensorflow.org/install/))
