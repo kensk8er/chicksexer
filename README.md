@@ -61,3 +61,15 @@ pip install chicksexer
 ```
 
 `chicksexer` also depends on `tensorflow` package. In default, it tries to install the CPU-only version of `tensorflow`. If you want to use GPU, you need to install `tensorflow` with GPU support by yourself. (C.f. [Installing Tensorflow](https://www.tensorflow.org/install/))
+
+Model Architecture
+------------------
+The gender classifier is implemented using Character-level Multilayer LSTM. The architecture is roughly as follows:
+
+1. Character Embedding Layer
+2. 1st LSTM Layer
+3. 2nd LSTM Layer
+4. Pooling Layer
+5. Fully Connected Layer
+
+The fully connected layer outputs the probability of a name bing a male name. For the details, look at `_build_graph()` method in `chicksexer/_classifier.py`, which implements the computational graph of the architecture in `tensorflow`.
