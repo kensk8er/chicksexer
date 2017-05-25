@@ -7,7 +7,7 @@ import pickle
 
 import numpy as np
 
-from chicksexer.constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS
+from chicksexer.constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS, CLASS2DEFAULT_CUTOFF
 from chicksexer.util import get_logger
 from preprocesser import PACKAGE_ROOT
 from preprocesser.dbpedia import gen_triples_from_file
@@ -88,12 +88,12 @@ def _augment_full_names(name2proba, gender):
     """Augment neutral names"""
     if gender == 'neutral':
         augmentation_num = _NEUTRAL_NAME_AUGMENTATION_NUM
-        low_proba = 1. / 3
-        high_proba = 2. / 3
+        low_proba = CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS]
+        high_proba = CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]
     elif gender == 'female':
         augmentation_num = _FEMALE_NAME_AUGMENTATION_NUM
         low_proba = float('-inf')
-        high_proba = 1. / 3
+        high_proba = CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS]
     else:
         raise ValueError('Invalid argument gender={}'.format(gender))
 

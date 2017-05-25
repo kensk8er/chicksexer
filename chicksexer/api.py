@@ -11,7 +11,7 @@ import regex
 
 from chicksexer import PACKAGE_ROOT
 from ._encoder import UnseenCharacterException
-from .constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS
+from .constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS, CLASS2DEFAULT_CUTOFF
 from ._classifier import CharLSTM
 from .util import get_logger
 
@@ -38,12 +38,15 @@ class InvalidCharacterException(Exception):
     """Thrown when there are invalid characters in the inputs."""
 
 
-def predict_genders(names: list, return_proba: bool = True) -> list:
+def predict_genders(names: list, return_proba: bool = True,
+                    neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> list:
     """
     Predict genders of the given name strings.
 
     :param names: list of names that you want to predict the gender
     :param return_proba: if True, return probability estimate of the names belonging to each gender
+    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it 
+                           returns 'neutral'. [default: 0.8] (only relevant when return_proba=False)
     :return: list of str (male or female) or {'male': male_proba, 'female': female_proba} 
     """
     global _model
@@ -52,8 +55,13 @@ def predict_genders(names: list, return_proba: bool = True) -> list:
         warnings.filterwarnings("ignore", message='Converting sparse IndexedSlices to a dense')
         _model = CharLSTM.load(_MODEL_PATH)
 
+    high_cutoff = neutral_cutoff
+    low_cutoff = 1. - neutral_cutoff
+
     try:
-        predictions = _model.predict(names, return_proba)
+        predictions = _model.predict(
+            names, return_proba, low_cutoff=low_cutoff, high_cutoff=high_cutoff)
+
     except UnseenCharacterException as exception:
         message = '{}. Remove the invalid characters from yor inputs.'.format(
             exception.args[0].replace('Unseen', 'Invalid'))
@@ -62,12 +70,15 @@ def predict_genders(names: list, return_proba: bool = True) -> list:
     return _filter(names, predictions, return_proba)
 
 
-def predict_gender(name: str, return_proba: bool = True) -> Union[str, dict]:
+def predict_gender(name: str, return_proba: bool = True,
+                   neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> Union[str, dict]:
     """
     Predict the gender of the given name string.
 
     :param name: name string that you want to predict the gender
     :param return_proba: if True, return probability estimate of the name belonging to each gender
+    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it 
+                           returns 'neutral'. [default: 0.8] (only relevant when return_proba=False)
     :return: str (male or female) or dict of {'male': male_proba, 'female': female_proba} 
     """
-    return predict_genders([name], return_proba)[0]
+    return predict_genders([name], return_proba, neutral_cutoff)[0]

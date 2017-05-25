@@ -30,10 +30,10 @@ You can also get an estimate as a simple string as follows:
 'neutral'
 >>> predict_gender('Ponya', return_proba=False)  # modify the name such that it sounds like a female name
 'female'
->>> predict_gender('Ryu Ito', return_proba=False)  # Ryu here is a Japanese first name
-'male'
+>>> predict_gender('Ryu Ito', return_proba=True)  # Ryu here is a Japanese first name
+{'female': 0.04139333963394165, 'male': 0.9586066603660583}
 >>> predict_gender('Ryu Seo-yeon', return_proba=False)  # Ryu is a Korean surname, Seo-yeon is a popular first name for girls
-'female'
+{'female': 0.7503564655780792, 'male': 0.24964353442192078}
 ```
 
 If you want to predict the gender of multiple names, use `predict_genders` (plural) function instead:
