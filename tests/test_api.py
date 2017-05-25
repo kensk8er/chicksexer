@@ -6,6 +6,7 @@ import os
 import unittest
 
 from chicksexer import predict_gender, predict_genders
+from chicksexer.api import InvalidCharacterException
 
 _TEST_DIR = os.path.dirname(__file__)
 
@@ -68,6 +69,24 @@ class ApiTest(unittest.TestCase):
             predictions = predict_genders(names, return_proba=False)
             self.assertTrue(
                 all(prediction != 'male' for prediction in predictions))
+
+    def test_filter(self):
+        prediction = predict_gender('@', return_proba=True)
+        self.assertEqual(prediction['male'], 0.5)
+        self.assertEqual(prediction['female'], 0.5)
+
+        prediction = predict_gender('@', return_proba=False)
+        self.assertEqual(prediction, 'neutral')
+
+        prediction = predict_gender('.', return_proba=False)
+        self.assertEqual(prediction, 'neutral')
+
+        prediction = predict_gender('', return_proba=False)
+        self.assertEqual(prediction, 'neutral')
+
+    def test_unseen_char(self):
+        with self.assertRaises(InvalidCharacterException):
+            predict_gender('村木', return_proba=True)
 
 
 if __name__ == '__main__':
