@@ -14,7 +14,7 @@ from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
 from tensorflow.python.client import timeline
 
 from ._batch import BatchGenerator
-from ._constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS
+from .constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS, CLASS2DEFAULT_CUTOFF
 from ._encoder import CharEncoder
 from .util import get_logger
 
@@ -220,7 +220,9 @@ class CharLSTM(object):
         _LOGGER.debug('Finished loading the model.')
         return instance
 
-    def predict(self, names: list, return_proba=True):
+    def predict(self, names: list, return_proba=True,
+                low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
+                high_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]):
         """
         Predict the genders of given names.
 
@@ -242,7 +244,7 @@ class CharLSTM(object):
             return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
                     for proba in y_pred]
         else:
-            return self._categorize_y(y_pred)
+            return self._categorize_y(y_pred, low_cutoff, high_cutoff)
 
     def _save(self, model_path, session):
         """Save the tensorflow session and the instance object of this Python class."""
@@ -386,10 +388,9 @@ class CharLSTM(object):
         return self._encoder.decode(samples)
 
     @staticmethod
-    def _categorize_y(y):
+    def _categorize_y(y, low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
+                      high_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]):
         """Categorize a list of continuous values y into a list of male/neutral/female labels."""
-        low_cutoff = 1. / 3
-        high_cutoff = 2. / 3
 
         def categorize_label(label):
             if label < low_cutoff:
