@@ -73,3 +73,11 @@ The gender classifier is implemented using Character-level Multilayer LSTM. The 
 5. Fully Connected Layer
 
 The fully connected layer outputs the probability of a name bing a male name. For the details, look at `_build_graph()` method in `chicksexer/_classifier.py`, which implements the computational graph of the architecture in `tensorflow`.
+
+Training Data
+-------------
+Names with gender annotation are obtained from the sources as follows:
+
+* [Dbpedia Person Data](http://downloads.dbpedia.org/2015-10/core-i18n/en/persondata_en.tql.bz2)
+* [Popular baby names in the US](https://www.ssa.gov/oact/babynames/limits.html)
+* [Names dataset curated by Milos Bejda](https://mbejda.github.io/)
