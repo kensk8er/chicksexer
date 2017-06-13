@@ -27,7 +27,7 @@ def get_version():
 current_path = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(current_path, 'README.md'), encoding='utf-8') as file_:
+with open(path.join(current_path, PACKAGE_NAME, 'README.md'), encoding='utf-8') as file_:
     long_description = file_.read()
 
 # Add dependencies into install_requires if they are on PyPI

@@ -1,1 +1,2 @@
+include chicksexer/README.md
 recursive-include chicksexer/models *
