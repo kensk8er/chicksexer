@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 """
-Main module of preprocesser package. Can be executed by `python -m preprocesser`.
+Main module of preprocessor package. Can be executed by `python -m preprocessor`.
 """
 import os
 import pickle
@@ -9,11 +9,11 @@ import numpy as np
 
 from chicksexer.constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS, CLASS2DEFAULT_CUTOFF
 from chicksexer.util import get_logger
-from preprocesser import PACKAGE_ROOT
-from preprocesser.dbpedia import gen_triples_from_file
-from preprocesser.gender_csv import gen_name_gender_from_csv
-from preprocesser.us_stats import compute_gender_probas
-from preprocesser.util import Name2Proba
+from preprocessor import PACKAGE_ROOT
+from preprocessor.dbpedia import gen_triples_from_file
+from preprocessor.gender_csv import gen_name_gender_from_csv
+from preprocessor.us_stats import compute_gender_probas
+from preprocessor.util import Name2Proba
 
 __author__ = 'kensk8er'
 
