@@ -12,7 +12,7 @@ import regex
 from chicksexer import PACKAGE_ROOT
 from ._encoder import UnseenCharacterException
 from .constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS, CLASS2DEFAULT_CUTOFF
-from ._classifier import CharLSTM
+from .classifier import CharLSTM
 from .util import get_logger
 
 _MODEL_PATH = os.path.join(PACKAGE_ROOT, 'models')

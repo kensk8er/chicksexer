@@ -103,7 +103,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space):
 
         return '_'.join('{}-{}'.format(key, format_val(val)) for key, val in parameters.items())
 
-    from chicksexer._classifier import CharLSTM  # import here after you configure logging
+    from chicksexer.classifier import CharLSTM  # import here after you configure logging
     searched_parameters = set()
     best_valid_score = np.float64('-inf')
     best_parameters = None
