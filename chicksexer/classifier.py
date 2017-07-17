@@ -85,7 +85,7 @@ class CharLSTM(object):
             batch_generator = BatchGenerator(X, y, batch_size=valid_batch_size, valid=True)
             losses, y_cat, y_cat_pred = list(), list(), list()
             for X_batch, y_batch in batch_generator:
-                X_batch, seq_lens = self._add_padding(X_batch)
+                X_batch, word_lens, char_lens = self._add_padding(X_batch)
                 loss, y_pred = session.run(
                     [nodes['loss'], nodes['y_pred']],
                     feed_dict={nodes['X']: X_batch, nodes['y']: y_batch,
@@ -155,7 +155,7 @@ class CharLSTM(object):
                 summaries = session.run(nodes['summaries'])
                 summary_writer.add_summary(summaries, global_step=iteration)
 
-            X_batch, seq_lens = self._add_padding(X_batch)
+            X_batch, word_lens, char_lens = self._add_padding(X_batch)
 
             # Predict labels and update the parameters
             _, loss, y_pred = session.run(
@@ -231,7 +231,7 @@ class CharLSTM(object):
         """
         nodes = self._nodes
         X = self._encode_chars(names)
-        X, seq_lens = self._add_padding(X)
+        X, word_lens, char_lens = self._add_padding(X)
         y_pred = self._session.run(
             nodes['y_pred'],
             feed_dict={nodes['X']: X, nodes['seq_lens']: seq_lens, nodes['is_train']: False})
@@ -355,37 +355,57 @@ class CharLSTM(object):
 
     def _add_padding(self, X):
         """
-        Add paddings to X in order to align the sequence lengths.
+        Add padding to X in order to align the sequence lengths.
 
-        :param X: list of sequences of character IDs
-        :return: padded list of sequences of character IDs & list of sequence length before padding
+        :param X: list (each name) of list (each word) of character IDs
+        :return: padded list of list of character IDs & list of word length before padding & list of
+            character length before padding
         """
-        max_len = max(len(x) for x in X)
-        seq_lens = list()
 
-        for x in X:
-            seq_lens.append(len(x))
-            pad_len = max_len - len(x)
-            x.extend([self._padding_id for _ in range(pad_len)])
-        return X, seq_lens
+        def get_max(X):
+            """Compute the maximum word length and maximum character length."""
+            max_word_len, max_char_len = 0, 0
+            for name in X:
+                if max_word_len < len(name):
+                    max_word_len = len(name)
+                for word in name:
+                    if max_char_len < len(word):
+                        max_char_len = len(word)
+            return max_word_len, max_char_len
 
-    def _encode_chars(self, samples, fit=False):
-        """Convert samples of characters into encoded characters (character IDs)."""
+        max_word_len, max_char_len = get_max(X)
+        word_lens = list()
+        char_lens = list()
+
+        for name in X:
+            word_lens.append(len(name))
+            word_pad_len = max_word_len - len(name)
+            name.extend([[] for _ in range(word_pad_len)])
+
+            for word in name:
+                char_lens.append(len(word))
+                char_pad_len = max_char_len - len(word)
+                word.extend([self._padding_id for _ in range(char_pad_len)])
+
+        return X, word_lens, char_lens
+
+    def _encode_chars(self, names, fit=False):
+        """Encode list of names into list (each name) of list (each word) of character IDs."""
         if fit:
-            encoded_samples = self._encoder.fit_encode(samples)
+            name_id2word_id2char_ids = self._encoder.fit_encode(names)
             self._vocab_size = self._encoder.vocab_size
         else:
-            encoded_samples = self._encoder.encode(samples)
-        return encoded_samples
+            name_id2word_id2char_ids = self._encoder.encode(names)
+        return name_id2word_id2char_ids
 
-    def _fit_encoder(self, samples):
-        """Fit the encoder to the given samples (of list of character IDs)."""
-        self._encoder.fit(samples)
+    def _fit_encoder(self, names):
+        """Fit the encoder to the given list of names."""
+        self._encoder.fit(names)
         self._vocab_size = self._encoder.vocab_size
 
-    def _decode_chars(self, samples):
-        """Convert samples of encoded character IDs into decoded characters."""
-        return self._encoder.decode(samples)
+    def _decode_chars(self, name_id2word_id2char_ids):
+        """Decode list (each name) of list (each word) of encoded character IDs into characters."""
+        return self._encoder.decode(name_id2word_id2char_ids)
 
     @staticmethod
     def _categorize_y(y, low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
