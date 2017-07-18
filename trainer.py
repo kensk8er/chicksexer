@@ -66,14 +66,14 @@ __author__ = 'kensk8er'
 
 def _get_parameter_space():
     """Define the parameter space to explore here."""
-    # TODO: update the parameters for random search
     parameter_space = OrderedDict()
-    parameter_space.update({'embedding_size': [16 * i for i in range(1, 11)]})
-    parameter_space.update({'rnn_size': [32 * i for i in range(1, 31)]})
-    parameter_space.update({'num_rnn_layers': [1, 2, 3]})
-    parameter_space.update({'learning_rate': [0.0001 * (2 ** i) for i in range(11)]})
-    parameter_space.update({'rnn_dropouts': [0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]})
-    parameter_space.update({'final_dropout': [0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]})
+    parameter_space.update({'embedding_size': [16 * i for i in range(1, 9)]})
+    parameter_space.update({'char_rnn_size': [32 * i for i in range(1, 30)]})
+    parameter_space.update({'word_rnn_size': [32 * i for i in range(1, 30)]})
+    parameter_space.update({'learning_rate': [0.001 * i for i in range(1, 101)]})
+    parameter_space.update({'embedding_dropout': [0., 0.03, 0.05, 0.1]})
+    parameter_space.update({'char_rnn_dropout': [0., 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]})
+    parameter_space.update({'word_rnn_dropout': [0., 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]})
     return parameter_space
 
 
@@ -125,14 +125,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, 
         """Sample parameters from the parameter space."""
         parameters = OrderedDict()
         for key, vals in parameter_space.items():
-            # TODO: update the logic of sampling according to the new architecture
-            if key == 'rnn_dropouts':
-                sampled_val = list()
-                for _ in range(parameters['num_rnn_layers']):
-                    sampled_val.append(choice(vals))  # sample a value randomly
-            else:
-                sampled_val = choice(vals)  # sample a value randomly
-            parameters[key] = sampled_val
+            parameters[key] = choice(vals)  # sample a value randomly
         return parameters
 
     from chicksexer.classifier import CharLSTM  # import here after you configure logging
@@ -160,7 +153,6 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, 
             model = CharLSTM(**parameters)
 
             _LOGGER.info('Started the train() method...')
-            # TODO: add args here
             score = model.train(names_train, y_train, names_valid, y_valid, model_path,
                                 int(args['--batch-size']), int(args['--patience']))
             searched_parameters.add(str(parameters))
