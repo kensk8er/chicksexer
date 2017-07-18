@@ -319,23 +319,9 @@ class CharLSTM(object):
                 char_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
 
                 with tf.name_scope('char_pooling_layer'):
-                    # perform mean pooling over characters
-                    char_rnn_outputs = tf.reduce_mean(char_rnn_outputs, reduction_indices=1)
-
-                    # In order to avoid 0 padding affect the mean, multiply by `n / m` where `n` is
-                    # `max_char_len` and `m` is `char_lens`
-                    char_rnn_outputs = tf.transpose(tf.divide(
-                        tf.transpose(
-                            tf.multiply(char_rnn_outputs, tf.cast(max_char_len, tf.float32))),
-                        tf.cast(nodes['char_lens'], tf.float32)))
-
-                    # shape back to the original shape
-                    char_rnn_outputs = tf.reshape(
-                        char_rnn_outputs, [batch_size, max_word_len, self._char_rnn_size * 2])
-
-                    # convert NaN to 0
-                    char_rnn_outputs = tf.where(tf.is_nan(char_rnn_outputs),
-                                                tf.zeros_like(char_rnn_outputs), char_rnn_outputs)
+                    char_rnn_outputs = self._mean_pool(
+                        char_rnn_outputs, batch_size, max_char_len, max_word_len,
+                        nodes['char_lens'])
 
                 char_rnn_outputs = dropout(
                     char_rnn_outputs, rate=self._char_rnn_dropout, training=nodes['is_train'])
@@ -455,25 +441,59 @@ class CharLSTM(object):
 
         return [categorize_label(label) for label in y]
 
-    def _attention_pool(self, outputs):
+    def _mean_pool(self, rnn_outputs, batch_size, max_char_len, max_word_len, char_lens):
+        """
+        Perform mean-pooling after the character-RNN layer.
+
+        :param rnn_outputs: hidden states of all the time steps after the character-RNN layer
+        :return: mean of the hidden states over every time step
+        """
+        # perform mean pooling over characters
+        rnn_outputs = tf.reduce_mean(rnn_outputs, reduction_indices=1)
+
+        # In order to avoid 0 padding affect the mean, multiply by `n / m` where `n` is
+        # `max_char_len` and `m` is `char_lens`
+        rnn_outputs = tf.multiply(rnn_outputs, tf.cast(max_char_len, tf.float32))  # multiply by `n`
+
+        # swap the dimensions in order to divide by an appropriate value for each time step
+        rnn_outputs = tf.transpose(rnn_outputs)
+
+        rnn_outputs = tf.divide(rnn_outputs, tf.cast(char_lens, tf.float32))  # divide by `m`
+        rnn_outputs = tf.transpose(rnn_outputs)  # shape back to the original shape
+
+        # batch and word-len dimensions were merged before running character-RNN so shape it back
+        rnn_outputs = tf.reshape(rnn_outputs, [batch_size, max_word_len, self._char_rnn_size * 2])
+
+        # there are NaN due to padded words (with char_len=0) so convert those NaN to 0
+        rnn_outputs = tf.where(tf.is_nan(rnn_outputs), tf.zeros_like(rnn_outputs), rnn_outputs)
+
+        return rnn_outputs
+
+    def _attention_pool(self, rnn_outputs):
         """
         Perform attention-pooling. Train an attention layer to soft search on hidden states to use
         and return weighted sum of the hidden states.
 
-        :param outputs: hidden states of all the time steps
-        :return: weighted sum of the hidden states and the weights for each time step
+        :param rnn_outputs: hidden states of all the time steps after the word-RNN layer
+        :return: weighted sum of the hidden states and attention weights for each time step
         """
         W = tf.Variable(tf.random_normal([2 * self._word_rnn_size]), name='weight_attention')
         b = tf.Variable(tf.random_normal([1]), name='bias_attention')
 
         # shape: batch_size * word_len
-        attentions = tf.reduce_sum(tf.multiply(W, outputs), reduction_indices=2) + b
+        attentions = tf.reduce_sum(tf.multiply(W, rnn_outputs), reduction_indices=2) + b
         attentions = tf.nn.softmax(attentions)  # convert to probability
 
-        # pool outputs by apply attentions
-        outputs = tf.reduce_sum(
-            tf.transpose(tf.multiply(tf.expand_dims(attentions, 1),
-                                tf.transpose(outputs, perm=[0, 2, 1])), perm=[0, 2, 1]),
-            reduction_indices=1)
+        # swap the dimensions in order to multiply by attentions to each word (the 2nd dimension)
+        rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])
 
-        return outputs, attentions
+        # expand the dimension in order to multiply outputs by attentions
+        attentions = tf.expand_dims(attentions, 1)
+
+        rnn_outputs = tf.multiply(attentions, rnn_outputs)
+        rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])  # shape back to the original shape
+
+        # pool hidden states of multiple words (after applying attention) into one hidden states
+        rnn_outputs = tf.reduce_sum(rnn_outputs, reduction_indices=1)
+
+        return rnn_outputs, attentions
