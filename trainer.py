@@ -70,7 +70,7 @@ def _get_parameter_space():
     parameter_space.update({'embedding_size': [16 * i for i in range(1, 9)]})
     parameter_space.update({'char_rnn_size': [32 * i for i in range(1, 30)]})
     parameter_space.update({'word_rnn_size': [32 * i for i in range(1, 30)]})
-    parameter_space.update({'learning_rate': [0.001 * i for i in range(1, 101)]})
+    parameter_space.update({'learning_rate': [0.0001 * i for i in range(1, 1001)]})
     parameter_space.update({'embedding_dropout': [0., 0.03, 0.05, 0.1]})
     parameter_space.update({'char_rnn_dropout': [0., 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]})
     parameter_space.update({'word_rnn_dropout': [0., 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]})
