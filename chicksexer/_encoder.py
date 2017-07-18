@@ -143,3 +143,8 @@ class CharEncoder(object):
         characters = regex.sub(r'`', "'", characters)
         characters = regex.sub(r'–', "-", characters)
         return characters
+
+    @property
+    def chars(self):
+        """Characters fitted in order of ascending character ID."""
+        return self._label_encoder.classes_

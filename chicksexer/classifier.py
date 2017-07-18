@@ -10,6 +10,7 @@ from time import time
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import accuracy_score, classification_report
+from tensorflow.contrib.tensorboard.plugins import projector
 from tensorflow.python.layers.core import dropout
 from tensorflow.contrib.rnn import LSTMCell
 from tensorflow.python.client import timeline
@@ -21,6 +22,7 @@ from .util import get_logger, set_log_path as _set_log_path
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'
+_EMBEDDING_METADATA_FILE = 'metadata.tsv'
 
 _LOGGER = get_logger(__name__)
 
@@ -149,6 +151,7 @@ class CharLSTM(object):
         session = tf.Session(graph=self._graph)
         summary_writer = tf.summary.FileWriter(
             os.path.join(model_path, self._tensorboard_dir), session.graph)
+        self._visualize_embedding(model_path, summary_writer)
         session.run(nodes['init'])
         _LOGGER.info('Start fitting a model...')
 
@@ -501,3 +504,19 @@ class CharLSTM(object):
         rnn_outputs = tf.reduce_sum(rnn_outputs, reduction_indices=1)
 
         return rnn_outputs, attentions
+
+    def _visualize_embedding(self, model_path, summary_writer):
+        """Create metadata file (and its config file) for tensorboard's embedding visualization."""
+        metadata_path = os.path.join(model_path, self._tensorboard_dir, _EMBEDDING_METADATA_FILE)
+
+        # create the metadata config file
+        config = projector.ProjectorConfig()
+        embedding = config.embeddings.add()
+        embedding.tensor_name = self._nodes['embeddings'].name
+        embedding.metadata_path = metadata_path
+        projector.visualize_embeddings(summary_writer, config)
+
+        # create metadata file
+        with open(metadata_path, 'w', encoding='utf8') as metadata_file:
+            for char in self._encoder.chars:
+                metadata_file.write('{}\n'.format(char))
