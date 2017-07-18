@@ -115,7 +115,9 @@ def _construct_model_name(parameters):
         else:
             return format_precision(val)
 
-    return '_'.join('{}-{}'.format(key, format_val(val)) for key, val in parameters.items())
+    parameter_names = list(parameters.keys())
+    parameter_names.sort()  # sort by key in order to have consistency in the order of params
+    return '_'.join('{}-{}'.format(key, format_val(parameters[key])) for key in parameter_names)
 
 
 def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, args):
