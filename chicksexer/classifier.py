@@ -10,7 +10,8 @@ from time import time
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import accuracy_score, classification_report
-from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
+from tensorflow.python.layers.core import dropout
+from tensorflow.contrib.rnn import LSTMCell
 from tensorflow.python.client import timeline
 
 from ._batch import BatchGenerator
@@ -33,20 +34,18 @@ class CharLSTM(object):
     _instance_file_name = 'instance.pkl'
     _tensorboard_dir = 'tensorboard.log'
 
-    def __init__(self, embedding_size=128, rnn_size=256, num_rnn_layers=2, learning_rate=0.001,
-                 rnn_dropouts=None, final_dropout=1.0):
-        # in order to avoid using mutable object as a default argument
-        if rnn_dropouts is None:
-            # default is 1.0, which means no dropout
-            rnn_dropouts = [1.0 for _ in range(num_rnn_layers)]
-        assert len(rnn_dropouts) == num_rnn_layers, 'len(rnn_dropouts) != num_rnn_layers'
-
+    def __init__(self, embedding_size=32, char_rnn_size=128, word_rnn_size=128, learning_rate=0.001,
+                 embedding_dropout=0., char_rnn_dropout=0., word_rnn_dropout=0.):
+        # hyper-parameters
         self._embedding_size = embedding_size
-        self._rnn_size = rnn_size
-        self._num_rnn_layers = num_rnn_layers
+        self._char_rnn_size = char_rnn_size
+        self._word_rnn_size = word_rnn_size
         self._learning_rate = learning_rate
-        self._rnn_dropouts = rnn_dropouts
-        self._final_dropout = final_dropout
+        self._embedding_dropout = embedding_dropout
+        self._char_rnn_dropout = char_rnn_dropout
+        self._word_rnn_dropout = word_rnn_dropout
+
+        # other instance variables
         self._nodes = None
         self._graph = None
         self._vocab_size = None
@@ -89,7 +88,8 @@ class CharLSTM(object):
                 loss, y_pred = session.run(
                     [nodes['loss'], nodes['y_pred']],
                     feed_dict={nodes['X']: X_batch, nodes['y']: y_batch,
-                               nodes['seq_lens']: seq_lens, nodes['is_train']: False},
+                               nodes['word_lens']: word_lens, nodes['char_lens']: char_lens,
+                               nodes['is_train']: False},
                     options=run_options, run_metadata=run_metadata)
                 losses.append(loss)
                 y_cat.extend(self._categorize_y(y_batch))
@@ -122,7 +122,7 @@ class CharLSTM(object):
 
             return best_score, patience
 
-        # prepare inputs and other variables for the model
+        _LOGGER.info('Prepare inputs and other variables for the model...')
         self._fit_encoder(names_train + names_valid)
         X_train = self._encode_chars(names_train)
         X_valid = self._encode_chars(names_valid)
@@ -138,7 +138,7 @@ class CharLSTM(object):
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE) if profile else None
         run_metadata = tf.RunMetadata() if profile else None
 
-        # Build and launch the graph
+        _LOGGER.info('Building the tensorflow graph...')
         self._build_graph()
         nodes = self._nodes
         session = tf.Session(graph=self._graph)
@@ -160,8 +160,8 @@ class CharLSTM(object):
             # Predict labels and update the parameters
             _, loss, y_pred = session.run(
                 [nodes['optimizer'], nodes['loss'], nodes['y_pred']],
-                feed_dict={nodes['X']: X_batch, nodes['y']: y_batch, nodes['seq_lens']: seq_lens,
-                           nodes['is_train']: True},
+                feed_dict={nodes['X']: X_batch, nodes['y']: y_batch, nodes['word_lens']: word_lens,
+                           nodes['char_lens']: char_lens, nodes['is_train']: True},
                 options=run_options, run_metadata=run_metadata)
 
             losses.append(loss)
@@ -234,7 +234,8 @@ class CharLSTM(object):
         X, word_lens, char_lens = self._add_padding(X)
         y_pred = self._session.run(
             nodes['y_pred'],
-            feed_dict={nodes['X']: X, nodes['seq_lens']: seq_lens, nodes['is_train']: False})
+            feed_dict={nodes['X']: X, nodes['word_lens']: word_lens, nodes['char_lens']: char_lens,
+                       nodes['is_train']: False})
 
         # np.ndarray isn't returned when len(X) == 1
         if not isinstance(y_pred, np.ndarray):
@@ -280,52 +281,84 @@ class CharLSTM(object):
         graph = tf.Graph()
         nodes = dict()
 
+        # TODO: keep predicting males for some reason, stopped learning
         with graph.as_default():
             with tf.name_scope('inputs'):
-                nodes['X'] = tf.placeholder(tf.int32, [None, None], name='X')
+                # inputs
+                nodes['X'] = tf.placeholder(tf.int32, [None, None, None], name='X')
                 nodes['y'] = tf.placeholder(tf.float32, [None], name='y')
-                nodes['seq_lens'] = tf.placeholder(tf.int32, [None], name='seq_lens')
+                nodes['word_lens'] = tf.placeholder(tf.int32, [None], name='word_lens')
+                nodes['char_lens'] = tf.placeholder(tf.int32, [None], name='char_lens')
                 nodes['is_train'] = tf.placeholder(tf.bool, shape=[], name='is_train')
-                rnn_dropouts = tf.where(nodes['is_train'], tf.constant(self._rnn_dropouts),
-                                        tf.ones([self._num_rnn_layers]))
-                final_dropout = tf.where(
-                    nodes['is_train'], tf.constant(self._final_dropout), tf.constant(1.0))
 
                 # get the shape of the input
                 X_shape = tf.shape(nodes['X'])
                 batch_size = X_shape[0]
-                max_seq_len = X_shape[1]
+                max_word_len = X_shape[1]
+                max_char_len = X_shape[2]
 
             with tf.name_scope('embedding_layer'):
                 nodes['embeddings'] = tf.Variable(
                     tf.random_uniform([self._vocab_size, self._embedding_size], -1.0, 1.0),
                     trainable=True, name='embeddings')
                 embedded = tf.nn.embedding_lookup(nodes['embeddings'], nodes['X'])
+                embedded = dropout(
+                    embedded, rate=self._embedding_dropout, training=nodes['is_train'])
 
-            with tf.name_scope('rnn_layer'):
-                cells = list()
-                for layer_id in range(self._num_rnn_layers):
-                    cell = LSTMCell(num_units=self._rnn_size)
-                    cell = DropoutWrapper(cell, input_keep_prob=rnn_dropouts[layer_id])
-                    cells.append(cell)
+            with tf.name_scope('char_rnn_layer') as scope:
+                # reshape the embedded matrix in order to pass it to dynamic_rnn
+                embedded = tf.reshape(
+                    embedded, [batch_size * max_word_len, max_char_len, self._embedding_size])
 
-                rnn_cell = MultiRNNCell(cells)
-                rnn_activations, states = tf.nn.dynamic_rnn(
-                    rnn_cell, embedded, nodes['seq_lens'], dtype=tf.float32)
+                char_rnn_fw_cell = LSTMCell(num_units=self._char_rnn_size)
+                char_rnn_bw_cell = LSTMCell(num_units=self._char_rnn_size)
+                (char_output_fw, char_output_bw), states = tf.nn.bidirectional_dynamic_rnn(
+                    char_rnn_fw_cell, char_rnn_bw_cell, embedded, dtype=tf.float32,
+                    sequence_length=nodes['char_lens'], scope='{}bidirectional_rnn'.format(scope))
 
-            with tf.name_scope('pooling_layer'):
-                final_indices = nodes['seq_lens'] - 1  # final_index = seq_len - 1
-                final_indices = tf.range(0, batch_size) * max_seq_len + final_indices
-                final_activation = tf.gather(
-                    tf.reshape(rnn_activations, [batch_size * max_seq_len, self._rnn_size]),
-                    final_indices)
-                final_activation = tf.nn.dropout(
-                    final_activation, final_dropout, name='final_dropout')
+                char_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
+
+                with tf.name_scope('char_pooling_layer'):
+                    # perform mean pooling over characters
+                    char_rnn_outputs = tf.reduce_mean(char_rnn_outputs, reduction_indices=1)
+
+                    # In order to avoid 0 padding affect the mean, multiply by `n / m` where `n` is
+                    # `max_char_len` and `m` is `char_lens`
+                    char_rnn_outputs = tf.transpose(tf.divide(
+                        tf.transpose(
+                            tf.multiply(char_rnn_outputs, tf.cast(max_char_len, tf.float32))),
+                        tf.cast(nodes['char_lens'], tf.float32)))
+
+                    # shape back to the original shape
+                    char_rnn_outputs = tf.reshape(
+                        char_rnn_outputs, [batch_size, max_word_len, self._char_rnn_size * 2])
+
+                    # convert NaN to 0
+                    char_rnn_outputs = tf.where(tf.is_nan(char_rnn_outputs),
+                                                tf.zeros_like(char_rnn_outputs), char_rnn_outputs)
+
+                char_rnn_outputs = dropout(
+                    char_rnn_outputs, rate=self._char_rnn_dropout, training=nodes['is_train'])
+
+            with tf.name_scope('word_rnn_layer') as scope:
+                word_rnn_fw_cell = LSTMCell(num_units=self._word_rnn_size)
+                word_rnn_bw_cell = LSTMCell(num_units=self._word_rnn_size)
+                (char_output_fw, char_output_bw), states = tf.nn.bidirectional_dynamic_rnn(
+                    word_rnn_fw_cell, word_rnn_bw_cell, char_rnn_outputs, dtype=tf.float32,
+                    sequence_length=nodes['word_lens'], scope='{}bidirectional_rnn'.format(scope))
+                word_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
+
+                with tf.name_scope('word_pooling_layer'):
+                    word_rnn_outputs, attentions = self._attention_pool(word_rnn_outputs)
+
+                word_rnn_outputs = dropout(
+                    word_rnn_outputs, rate=self._word_rnn_dropout, training=nodes['is_train'])
 
             with tf.variable_scope('softmax_layer'):
-                nodes['W_s'] = tf.Variable(tf.random_normal([self._rnn_size, 1]), name='weight')
+                nodes['W_s'] = tf.Variable(
+                    tf.random_normal([self._word_rnn_size * 2, 1]), name='weight')
                 nodes['b_s'] = tf.Variable(tf.random_normal([1]), name='bias')
-                logits = tf.squeeze(tf.matmul(final_activation, nodes['W_s']) + nodes['b_s'])
+                logits = tf.squeeze(tf.matmul(word_rnn_outputs, nodes['W_s']) + nodes['b_s'])
                 nodes['y_pred'] = tf.nn.sigmoid(logits)
 
             with tf.variable_scope('optimizer'):
@@ -421,3 +454,26 @@ class CharLSTM(object):
                 return POSITIVE_CLASS
 
         return [categorize_label(label) for label in y]
+
+    def _attention_pool(self, outputs):
+        """
+        Perform attention-pooling. Train an attention layer to soft search on hidden states to use
+        and return weighted sum of the hidden states.
+
+        :param outputs: hidden states of all the time steps
+        :return: weighted sum of the hidden states and the weights for each time step
+        """
+        W = tf.Variable(tf.random_normal([2 * self._word_rnn_size]), name='weight_attention')
+        b = tf.Variable(tf.random_normal([1]), name='bias_attention')
+
+        # shape: batch_size * word_len
+        attentions = tf.reduce_sum(tf.multiply(W, outputs), reduction_indices=2) + b
+        attentions = tf.nn.softmax(attentions)  # convert to probability
+
+        # pool outputs by apply attentions
+        outputs = tf.reduce_sum(
+            tf.transpose(tf.multiply(tf.expand_dims(attentions, 1),
+                                tf.transpose(outputs, perm=[0, 2, 1])), perm=[0, 2, 1]),
+            reduction_indices=1)
+
+        return outputs, attentions

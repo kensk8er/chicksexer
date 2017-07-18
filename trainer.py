@@ -21,12 +21,13 @@ Options:
     --profile  Profile the training (profile_train/valid.json will be created)
 
     # options for when not doing random-search (ignored when doing random-search)
-    --embed-size=<int>  The number of dimensions of the character embedding layer [default: 128]
-    --rnn-size=<int>  The number of dimensions of the RNN layers [default: 256]
-    --num-layers=<int>  The number of RNN layers [default: 2]
+    --embed-size=<int>  The number of dimensions of the character embedding layer [default: 32]
+    --char-rnn-size=<int>  The number of dimensions of the character-RNN layer [default: 128]
+    --word-rnn-size=<int>  The number of dimensions of the word-RNN layer [default: 128]
     --learning-rate=<float>  Initial learning rate of SGD (Adam Optimizer) [default: 0.001]
-    --rnn-dropouts=<floats>  Keep probability of dropout in each RNN layer [default: 1.0,1.0]
-    --final-dropout=<float>  Keep probability of dropout in the final fully connected layer [default: 1.0]
+    --embed-dropout=<float>  Dropout rate after the embedding layer [default: 0.]
+    --char-rnn-dropout=<float>  Dropout rate after the character-RNN layer [default: 0.]
+    --word-rnn-dropout=<float>  Dropout rate after the word-RNN layer [default: 0.]
 
     # universal non-training-related options
     -h --help  Show this screen
@@ -36,7 +37,7 @@ Options:
 
 Examples:
     python trainer.py random-search
-    python trainer.py --embed-size=128 --rnn-size=256 --num-layers=2 --rnn-dropouts=1.0,1.0
+    python trainer.py --embed-size=128 --char-rnn-size=128 --word-rnn-size=128 --char-rnn-dropout=0.5
 
 """
 import json
@@ -65,6 +66,7 @@ __author__ = 'kensk8er'
 
 def _get_parameter_space():
     """Define the parameter space to explore here."""
+    # TODO: update the parameters for random search
     parameter_space = OrderedDict()
     parameter_space.update({'embedding_size': [16 * i for i in range(1, 11)]})
     parameter_space.update({'rnn_size': [32 * i for i in range(1, 31)]})
@@ -123,6 +125,7 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, 
         """Sample parameters from the parameter space."""
         parameters = OrderedDict()
         for key, vals in parameter_space.items():
+            # TODO: update the logic of sampling according to the new architecture
             if key == 'rnn_dropouts':
                 sampled_val = list()
                 for _ in range(parameters['num_rnn_layers']):
@@ -188,11 +191,12 @@ def _simple_train(names_train, names_valid, y_train, y_valid, args):
 
     parameters = {
         'embedding_size': int(args['--embed-size']),
-        'rnn_size': int(args['--rnn-size']),
-        'num_rnn_layers': int(args['--num-layers']),
+        'char_rnn_size': int(args['--char-rnn-size']),
+        'word_rnn_size': int(args['--word-rnn-size']),
         'learning_rate': float(args['--learning-rate']),
-        'rnn_dropouts': [float(proba) for proba in args['--rnn-dropouts'].split(',')],
-        'final_dropout': float(args['--final-dropout']),
+        'embedding_dropout': float(args['--embed-dropout']),
+        'char_rnn_dropout': float(args['--char-rnn-dropout']),
+        'word_rnn_dropout': float(args['--word-rnn-dropout']),
     }
     model_name = _construct_model_name(parameters)
     model_path = os.path.join(args['--model-dir'], model_name)
