@@ -68,9 +68,9 @@ __author__ = 'kensk8er'
 def _get_parameter_space():
     """Define the parameter space to explore here."""
     parameter_space = OrderedDict()
-    parameter_space.update({'embedding_size': [16 * i for i in range(1, 9)]})
-    parameter_space.update({'char_rnn_size': [128 * i for i in range(1, 11)]})
-    parameter_space.update({'word_rnn_size': [128 * i for i in range(1, 11)]})
+    parameter_space.update({'embedding_size': [16 * i for i in range(1, 5)]})
+    parameter_space.update({'char_rnn_size': [64 * i for i in range(1, 5)]})
+    parameter_space.update({'word_rnn_size': [64 * i for i in range(1, 5)]})
     parameter_space.update({'learning_rate': [0.0001 * (2 ** i) for i in range(8)]})
     parameter_space.update({'embedding_dropout': [0., 0.01, 0.03, 0.05, 0.1]})
     parameter_space.update({'char_rnn_dropout': [0., 0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]})
