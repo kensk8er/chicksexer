@@ -55,6 +55,7 @@ from tensorflow.python.framework.errors_impl import InvalidArgumentError
 from chicksexer.util import set_default_log_level, set_log_level, get_logger, \
     set_default_log_path, set_log_path
 from chicksexer import __version__
+from chicksexer.classifier import CharLSTM, set_log_path as set_classifier_log_path
 
 _RANDOM_STATE = 0  # this is to make train/test split always return the same split
 _HOME_DIR = '~/'
@@ -130,7 +131,6 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, 
             parameters[key] = choice(vals)  # sample a value randomly
         return parameters
 
-    from chicksexer.classifier import CharLSTM  # import here after you configure logging
     searched_parameters = set()
     best_valid_score = np.float64('-inf')
     best_parameters = None
@@ -181,8 +181,6 @@ def _random_search(names_train, names_valid, y_train, y_valid, parameter_space, 
 
 def _simple_train(names_train, names_valid, y_train, y_valid, args):
     """Simply train a model using hyper-parameters specified in the args."""
-    from chicksexer.classifier import CharLSTM  # import here after you configure logging
-
     parameters = {
         'embedding_size': int(args['--embed-size']),
         'char_rnn_size': int(args['--char-rnn-size']),
@@ -216,6 +214,7 @@ def main():
         log_path = args['--log-path']
         set_default_log_path(log_path)
         set_log_path(_LOGGER, log_path)
+        set_classifier_log_path(log_path)
 
     _LOGGER.debug('Configuration:\n{}'.format(args))
 

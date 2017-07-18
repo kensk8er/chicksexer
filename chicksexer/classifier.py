@@ -17,7 +17,7 @@ from tensorflow.python.client import timeline
 from ._batch import BatchGenerator
 from .constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS, CLASS2DEFAULT_CUTOFF
 from ._encoder import CharEncoder
-from .util import get_logger
+from .util import get_logger, set_log_path as _set_log_path
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'
@@ -25,6 +25,11 @@ _VALID_PROFILE_FILE = 'profile_valid.json'
 _LOGGER = get_logger(__name__)
 
 __author__ = 'kensk8er'
+
+
+def set_log_path(log_path):
+    """Set the log path of the logger in classifier module."""
+    _set_log_path(_LOGGER, log_path)
 
 
 class CharLSTM(object):
