@@ -51,9 +51,7 @@ def predict_genders(names: list, return_proba: bool = True,
     """
     global _model
     if not _model:
-        _LOGGER.info('Loading model (only required for the initial prediction)...')
-        warnings.filterwarnings("ignore", message='Converting sparse IndexedSlices to a dense')
-        _model = CharLSTM.load(_MODEL_PATH)
+        _load_model()
 
     high_cutoff = neutral_cutoff
     low_cutoff = 1. - neutral_cutoff
@@ -70,6 +68,14 @@ def predict_genders(names: list, return_proba: bool = True,
     return _filter(names, predictions, return_proba)
 
 
+def _load_model():
+    """Load the model."""
+    global _model
+    _LOGGER.info('Loading model (only required for the initial prediction)...')
+    warnings.filterwarnings("ignore", message='Converting sparse IndexedSlices to a dense')
+    _model = CharLSTM.load(_MODEL_PATH)
+
+
 def predict_gender(name: str, return_proba: bool = True,
                    neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> Union[str, dict]:
     """
@@ -82,3 +88,10 @@ def predict_gender(name: str, return_proba: bool = True,
     :return: str (male or female) or dict of {'male': male_proba, 'female': female_proba} 
     """
     return predict_genders([name], return_proba, neutral_cutoff)[0]
+
+
+def change_model(model_path: str) -> None:
+    """Change the model of chicksexer to the model stored under `model_path`."""
+    global _MODEL_PATH, _model
+    _MODEL_PATH = model_path
+    _load_model()
