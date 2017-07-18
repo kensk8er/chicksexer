@@ -281,7 +281,6 @@ class CharLSTM(object):
         graph = tf.Graph()
         nodes = dict()
 
-        # TODO: keep predicting males for some reason, stopped learning
         with graph.as_default():
             with tf.name_scope('inputs'):
                 # inputs
