@@ -518,5 +518,6 @@ class CharLSTM(object):
 
         # create metadata file
         with open(metadata_path, 'w', encoding='utf8') as metadata_file:
-            for char in self._encoder.chars:
-                metadata_file.write('{}\n'.format(char))
+            metadata_file.write('Character\tID\n')
+            for id_, char in enumerate(self._encoder.chars):
+                metadata_file.write('{}\t{}\n'.format(char, id_))
