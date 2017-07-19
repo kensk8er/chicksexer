@@ -38,16 +38,18 @@ class InvalidCharacterException(Exception):
     """Thrown when there are invalid characters in the inputs."""
 
 
-def predict_genders(names: list, return_proba: bool = True,
-                    neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> list:
+def predict_genders(names: list, return_proba: bool = True, return_attention: bool = False,
+                    neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> Union[list, tuple]:
     """
     Predict genders of the given name strings.
 
     :param names: list of names that you want to predict the gender
     :param return_proba: if True, return probability estimate of the names belonging to each gender
-    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it 
+    :param return_attention: if True, return attentions (weight for each word)
+    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it
                            returns 'neutral'. [default: 0.8] (only relevant when return_proba=False)
-    :return: list of str (male or female) or {'male': male_proba, 'female': female_proba} 
+    :return: list of str (male or female) or {'male': male_proba, 'female': female_proba} or
+        tuple of aforementioned plus attentions
     """
     global _model
     if not _model:
@@ -57,15 +59,24 @@ def predict_genders(names: list, return_proba: bool = True,
     low_cutoff = 1. - neutral_cutoff
 
     try:
-        predictions = _model.predict(
-            names, return_proba, low_cutoff=low_cutoff, high_cutoff=high_cutoff)
+        return_value = _model.predict(
+            names, return_proba, return_attention, low_cutoff=low_cutoff, high_cutoff=high_cutoff)
+
+        if return_attention:
+            predictions, attentions = return_value
+        else:
+            predictions, attentions = return_value, None
 
     except UnseenCharacterException as exception:
         message = '{}. Remove the invalid characters from yor inputs.'.format(
             exception.args[0].replace('Unseen', 'Invalid'))
         raise InvalidCharacterException(message)
 
-    return _filter(names, predictions, return_proba)
+    predictions = _filter(names, predictions, return_proba)
+    if attentions:
+        return predictions, attentions
+    else:
+        return predictions
 
 
 def _load_model():
@@ -76,18 +87,30 @@ def _load_model():
     _model = CharLSTM.load(_MODEL_PATH)
 
 
-def predict_gender(name: str, return_proba: bool = True,
-                   neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> Union[str, dict]:
+def predict_gender(name: str, return_proba: bool = True, return_attention: bool = False,
+                   neutral_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]) -> Union[str, dict, tuple]:
     """
     Predict the gender of the given name string.
 
     :param name: name string that you want to predict the gender
     :param return_proba: if True, return probability estimate of the name belonging to each gender
-    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it 
+    :param return_attention: if True, return attention (weight for each word)
+    :param neutral_cutoff: if the probability is lower than this threshold for both genders, it
                            returns 'neutral'. [default: 0.8] (only relevant when return_proba=False)
-    :return: str (male or female) or dict of {'male': male_proba, 'female': female_proba} 
+    :return: str (male or female) or dict of {'male': male_proba, 'female': female_proba} or
+        tuple of aforementioned plus attentions
     """
-    return predict_genders([name], return_proba, neutral_cutoff)[0]
+    return_value = predict_genders([name], return_proba, return_attention, neutral_cutoff)
+
+    if return_attention:
+        predictions, attentions = return_value
+    else:
+        predictions, attentions = return_value, None
+
+    if attentions:
+        return predictions[0], attentions[0]
+    else:
+        return predictions[0]
 
 
 def change_model(model_path: str) -> None:

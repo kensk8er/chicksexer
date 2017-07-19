@@ -228,7 +228,7 @@ class CharLSTM(object):
         _LOGGER.debug('Finished loading the model.')
         return instance
 
-    def predict(self, names: list, return_proba=True,
+    def predict(self, names: list, return_proba=True, return_attention=False,
                 low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
                 high_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]):
         """
@@ -236,12 +236,13 @@ class CharLSTM(object):
 
         :param names: list of names
         :param return_proba: output probability if set as True
+        :param return_attention: if True, return attentions (weights for each time step)
         """
         nodes = self._nodes
         X = self._encode_chars(names)
         X, word_lens, char_lens = self._add_padding(X)
-        y_pred = self._session.run(
-            nodes['y_pred'],
+        y_pred, attentions = self._session.run(
+            [nodes['y_pred'], nodes['attentions']],
             feed_dict={nodes['X']: X, nodes['word_lens']: word_lens, nodes['char_lens']: char_lens,
                        nodes['is_train']: False})
 
@@ -250,10 +251,15 @@ class CharLSTM(object):
             y_pred = [y_pred]
 
         if return_proba:
-            return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
-                    for proba in y_pred]
+            return_value = [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
+                            for proba in y_pred]
         else:
-            return self._categorize_y(y_pred, low_cutoff, high_cutoff)
+            return_value = self._categorize_y(y_pred, low_cutoff, high_cutoff)
+
+        if return_attention:
+            return return_value, attentions.tolist()
+        else:
+            return return_value
 
     def _save(self, model_path, session):
         """Save the tensorflow session and the instance object of this Python class."""
@@ -342,7 +348,7 @@ class CharLSTM(object):
                 word_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
 
                 with tf.name_scope('word_pooling_layer'):
-                    word_rnn_outputs, attentions = self._attention_pool(word_rnn_outputs)
+                    word_rnn_outputs, nodes['attentions'] = self._attention_pool(word_rnn_outputs)
 
                 word_rnn_outputs = dropout(
                     word_rnn_outputs, rate=self._word_rnn_dropout, training=nodes['is_train'])
@@ -495,7 +501,7 @@ class CharLSTM(object):
         rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])
 
         # expand the dimension in order to multiply outputs by attentions
-        attentions = tf.expand_dims(attentions, 1)
+        attentions = tf.expand_dims(attentions, axis=1)
 
         rnn_outputs = tf.multiply(attentions, rnn_outputs)
         rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])  # shape back to the original shape
@@ -503,7 +509,7 @@ class CharLSTM(object):
         # pool hidden states of multiple words (after applying attention) into one hidden states
         rnn_outputs = tf.reduce_sum(rnn_outputs, reduction_indices=1)
 
-        return rnn_outputs, attentions
+        return rnn_outputs, tf.squeeze(attentions, axis=1)
 
     def _visualize_embedding(self, model_path, summary_writer):
         """Create metadata file (and its config file) for tensorboard's embedding visualization."""

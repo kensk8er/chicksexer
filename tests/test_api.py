@@ -88,6 +88,36 @@ class ApiTest(unittest.TestCase):
         with self.assertRaises(InvalidCharacterException):
             predict_gender('村木', return_proba=True)
 
+    def test_attention(self):
+        """Test case for returning attention over words."""
+        prediction, attention = predict_gender(
+            'Kensuke Muraki', return_proba=False, return_attention=True)
+        self.assertEqual(prediction, 'male')
+        self.assertGreater(attention[0], attention[1])
+
+        prediction, attention = predict_gender(
+            'Kensuke Muraki', return_proba=True, return_attention=True)
+        self.assertGreater(prediction['male'], prediction['female'])
+        self.assertGreater(attention[0], attention[1])
+
+        predictions, attentions = predict_genders(
+            ['Kensuke Muraki', 'Theresa Mary May'], return_proba=False, return_attention=True)
+        self.assertEqual(predictions[0], 'male')
+        self.assertEqual(predictions[1], 'female')
+        self.assertGreater(attentions[0][0], attentions[0][1])
+        # the 3rd word is a padded word, which shouldn't have much attention
+        self.assertAlmostEqual(attentions[0][2], 0.)
+        self.assertGreater(attentions[1][0], attentions[1][2])  # first name must be more important
+
+        predictions, attentions = predict_genders(
+            ['Kensuke Muraki', 'Theresa Mary May'], return_proba=True, return_attention=True)
+        self.assertGreater(predictions[0]['male'], predictions[0]['female'])
+        self.assertGreater(predictions[1]['female'], predictions[1]['male'])
+        self.assertGreater(attentions[0][0], attentions[0][1])
+        # the 3rd word is a padded word, which shouldn't have much attention
+        self.assertAlmostEqual(attentions[0][2], 0.)
+        self.assertGreater(attentions[1][0], attentions[1][2])  # first name must be more important
+
 
 if __name__ == '__main__':
     unittest.main()

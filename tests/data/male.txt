@@ -1,6 +1,5 @@
 Adrick
 Aldric
-Allin
 Andros
 Apostolos
 Arvie
@@ -10,7 +9,6 @@ Benito
 Billy
 Brent
 Bryon
-Carlin
 Chase
 Clarance
 Cob
@@ -87,7 +85,6 @@ Tim
 Tore
 Trevar
 Tyrus
-Vail
 Vincents
 Walden
 Washington
