@@ -198,7 +198,7 @@ def _simple_train(names_train, names_valid, y_train, y_valid, args):
 
     _LOGGER.info('Started the train() method...')
     model.train(names_train, y_train, names_valid, y_valid, model_path, int(args['--batch-size']),
-                int(args['--patience']))
+                int(args['--patience']), profile=args['--profile'])
 
 
 def main():
