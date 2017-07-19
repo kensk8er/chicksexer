@@ -10,20 +10,28 @@ from time import time
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import accuracy_score, classification_report
-from tensorflow.contrib.rnn import DropoutWrapper, LSTMCell, MultiRNNCell
+from tensorflow.contrib.tensorboard.plugins import projector
+from tensorflow.python.layers.core import dropout
+from tensorflow.contrib.rnn import LSTMCell
 from tensorflow.python.client import timeline
 
 from ._batch import BatchGenerator
 from .constant import NEGATIVE_CLASS, NEUTRAL_CLASS, POSITIVE_CLASS, CLASS2DEFAULT_CUTOFF
 from ._encoder import CharEncoder
-from .util import get_logger
+from .util import get_logger, set_log_path as _set_log_path
 
 _TRAIN_PROFILE_FILE = 'profile_train.json'
 _VALID_PROFILE_FILE = 'profile_valid.json'
+_EMBEDDING_METADATA_FILE = 'metadata.tsv'
 
 _LOGGER = get_logger(__name__)
 
 __author__ = 'kensk8er'
+
+
+def set_log_path(log_path):
+    """Set the log path of the logger in classifier module."""
+    _set_log_path(_LOGGER, log_path)
 
 
 class CharLSTM(object):
@@ -33,20 +41,18 @@ class CharLSTM(object):
     _instance_file_name = 'instance.pkl'
     _tensorboard_dir = 'tensorboard.log'
 
-    def __init__(self, embedding_size=128, rnn_size=256, num_rnn_layers=2, learning_rate=0.001,
-                 rnn_dropouts=None, final_dropout=1.0):
-        # in order to avoid using mutable object as a default argument
-        if rnn_dropouts is None:
-            # default is 1.0, which means no dropout
-            rnn_dropouts = [1.0 for _ in range(num_rnn_layers)]
-        assert len(rnn_dropouts) == num_rnn_layers, 'len(rnn_dropouts) != num_rnn_layers'
-
+    def __init__(self, embedding_size=32, char_rnn_size=128, word_rnn_size=128, learning_rate=0.001,
+                 embedding_dropout=0., char_rnn_dropout=0., word_rnn_dropout=0.):
+        # hyper-parameters
         self._embedding_size = embedding_size
-        self._rnn_size = rnn_size
-        self._num_rnn_layers = num_rnn_layers
+        self._char_rnn_size = char_rnn_size
+        self._word_rnn_size = word_rnn_size
         self._learning_rate = learning_rate
-        self._rnn_dropouts = rnn_dropouts
-        self._final_dropout = final_dropout
+        self._embedding_dropout = embedding_dropout
+        self._char_rnn_dropout = char_rnn_dropout
+        self._word_rnn_dropout = word_rnn_dropout
+
+        # other instance variables
         self._nodes = None
         self._graph = None
         self._vocab_size = None
@@ -85,11 +91,12 @@ class CharLSTM(object):
             batch_generator = BatchGenerator(X, y, batch_size=valid_batch_size, valid=True)
             losses, y_cat, y_cat_pred = list(), list(), list()
             for X_batch, y_batch in batch_generator:
-                X_batch, seq_lens = self._add_padding(X_batch)
+                X_batch, word_lens, char_lens = self._add_padding(X_batch)
                 loss, y_pred = session.run(
                     [nodes['loss'], nodes['y_pred']],
                     feed_dict={nodes['X']: X_batch, nodes['y']: y_batch,
-                               nodes['seq_lens']: seq_lens, nodes['is_train']: False},
+                               nodes['word_lens']: word_lens, nodes['char_lens']: char_lens,
+                               nodes['is_train']: False},
                     options=run_options, run_metadata=run_metadata)
                 losses.append(loss)
                 y_cat.extend(self._categorize_y(y_batch))
@@ -122,7 +129,7 @@ class CharLSTM(object):
 
             return best_score, patience
 
-        # prepare inputs and other variables for the model
+        _LOGGER.info('Prepare inputs and other variables for the model...')
         self._fit_encoder(names_train + names_valid)
         X_train = self._encode_chars(names_train)
         X_valid = self._encode_chars(names_valid)
@@ -138,12 +145,13 @@ class CharLSTM(object):
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE) if profile else None
         run_metadata = tf.RunMetadata() if profile else None
 
-        # Build and launch the graph
+        _LOGGER.info('Building the tensorflow graph...')
         self._build_graph()
         nodes = self._nodes
         session = tf.Session(graph=self._graph)
         summary_writer = tf.summary.FileWriter(
             os.path.join(model_path, self._tensorboard_dir), session.graph)
+        self._visualize_embedding(model_path, summary_writer)
         session.run(nodes['init'])
         _LOGGER.info('Start fitting a model...')
 
@@ -155,13 +163,13 @@ class CharLSTM(object):
                 summaries = session.run(nodes['summaries'])
                 summary_writer.add_summary(summaries, global_step=iteration)
 
-            X_batch, seq_lens = self._add_padding(X_batch)
+            X_batch, word_lens, char_lens = self._add_padding(X_batch)
 
             # Predict labels and update the parameters
             _, loss, y_pred = session.run(
                 [nodes['optimizer'], nodes['loss'], nodes['y_pred']],
-                feed_dict={nodes['X']: X_batch, nodes['y']: y_batch, nodes['seq_lens']: seq_lens,
-                           nodes['is_train']: True},
+                feed_dict={nodes['X']: X_batch, nodes['y']: y_batch, nodes['word_lens']: word_lens,
+                           nodes['char_lens']: char_lens, nodes['is_train']: True},
                 options=run_options, run_metadata=run_metadata)
 
             losses.append(loss)
@@ -220,7 +228,7 @@ class CharLSTM(object):
         _LOGGER.debug('Finished loading the model.')
         return instance
 
-    def predict(self, names: list, return_proba=True,
+    def predict(self, names: list, return_proba=True, return_attention=False,
                 low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
                 high_cutoff=CLASS2DEFAULT_CUTOFF[POSITIVE_CLASS]):
         """
@@ -228,23 +236,30 @@ class CharLSTM(object):
 
         :param names: list of names
         :param return_proba: output probability if set as True
+        :param return_attention: if True, return attentions (weights for each time step)
         """
         nodes = self._nodes
         X = self._encode_chars(names)
-        X, seq_lens = self._add_padding(X)
-        y_pred = self._session.run(
-            nodes['y_pred'],
-            feed_dict={nodes['X']: X, nodes['seq_lens']: seq_lens, nodes['is_train']: False})
+        X, word_lens, char_lens = self._add_padding(X)
+        y_pred, attentions = self._session.run(
+            [nodes['y_pred'], nodes['attentions']],
+            feed_dict={nodes['X']: X, nodes['word_lens']: word_lens, nodes['char_lens']: char_lens,
+                       nodes['is_train']: False})
 
         # np.ndarray isn't returned when len(X) == 1
         if not isinstance(y_pred, np.ndarray):
             y_pred = [y_pred]
 
         if return_proba:
-            return [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
-                    for proba in y_pred]
+            return_value = [{POSITIVE_CLASS: float(proba), NEGATIVE_CLASS: float(1 - proba)}
+                            for proba in y_pred]
         else:
-            return self._categorize_y(y_pred, low_cutoff, high_cutoff)
+            return_value = self._categorize_y(y_pred, low_cutoff, high_cutoff)
+
+        if return_attention:
+            return return_value, attentions.tolist()
+        else:
+            return return_value
 
     def _save(self, model_path, session):
         """Save the tensorflow session and the instance object of this Python class."""
@@ -282,50 +297,67 @@ class CharLSTM(object):
 
         with graph.as_default():
             with tf.name_scope('inputs'):
-                nodes['X'] = tf.placeholder(tf.int32, [None, None], name='X')
+                # inputs
+                nodes['X'] = tf.placeholder(tf.int32, [None, None, None], name='X')
                 nodes['y'] = tf.placeholder(tf.float32, [None], name='y')
-                nodes['seq_lens'] = tf.placeholder(tf.int32, [None], name='seq_lens')
+                nodes['word_lens'] = tf.placeholder(tf.int32, [None], name='word_lens')
+                nodes['char_lens'] = tf.placeholder(tf.int32, [None], name='char_lens')
                 nodes['is_train'] = tf.placeholder(tf.bool, shape=[], name='is_train')
-                rnn_dropouts = tf.where(nodes['is_train'], tf.constant(self._rnn_dropouts),
-                                        tf.ones([self._num_rnn_layers]))
-                final_dropout = tf.where(
-                    nodes['is_train'], tf.constant(self._final_dropout), tf.constant(1.0))
 
                 # get the shape of the input
                 X_shape = tf.shape(nodes['X'])
                 batch_size = X_shape[0]
-                max_seq_len = X_shape[1]
+                max_word_len = X_shape[1]
+                max_char_len = X_shape[2]
 
             with tf.name_scope('embedding_layer'):
                 nodes['embeddings'] = tf.Variable(
                     tf.random_uniform([self._vocab_size, self._embedding_size], -1.0, 1.0),
                     trainable=True, name='embeddings')
                 embedded = tf.nn.embedding_lookup(nodes['embeddings'], nodes['X'])
+                embedded = dropout(
+                    embedded, rate=self._embedding_dropout, training=nodes['is_train'])
 
-            with tf.name_scope('rnn_layer'):
-                cells = list()
-                for layer_id in range(self._num_rnn_layers):
-                    cell = LSTMCell(num_units=self._rnn_size)
-                    cell = DropoutWrapper(cell, input_keep_prob=rnn_dropouts[layer_id])
-                    cells.append(cell)
+            with tf.name_scope('char_rnn_layer') as scope:
+                # reshape the embedded matrix in order to pass it to dynamic_rnn
+                embedded = tf.reshape(
+                    embedded, [batch_size * max_word_len, max_char_len, self._embedding_size])
 
-                rnn_cell = MultiRNNCell(cells)
-                rnn_activations, states = tf.nn.dynamic_rnn(
-                    rnn_cell, embedded, nodes['seq_lens'], dtype=tf.float32)
+                char_rnn_fw_cell = LSTMCell(num_units=self._char_rnn_size)
+                char_rnn_bw_cell = LSTMCell(num_units=self._char_rnn_size)
+                (char_output_fw, char_output_bw), states = tf.nn.bidirectional_dynamic_rnn(
+                    char_rnn_fw_cell, char_rnn_bw_cell, embedded, dtype=tf.float32,
+                    sequence_length=nodes['char_lens'], scope='{}bidirectional_rnn'.format(scope))
 
-            with tf.name_scope('pooling_layer'):
-                final_indices = nodes['seq_lens'] - 1  # final_index = seq_len - 1
-                final_indices = tf.range(0, batch_size) * max_seq_len + final_indices
-                final_activation = tf.gather(
-                    tf.reshape(rnn_activations, [batch_size * max_seq_len, self._rnn_size]),
-                    final_indices)
-                final_activation = tf.nn.dropout(
-                    final_activation, final_dropout, name='final_dropout')
+                char_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
+
+                with tf.name_scope('char_pooling_layer'):
+                    char_rnn_outputs = self._mean_pool(
+                        char_rnn_outputs, batch_size, max_char_len, max_word_len,
+                        nodes['char_lens'])
+
+                char_rnn_outputs = dropout(
+                    char_rnn_outputs, rate=self._char_rnn_dropout, training=nodes['is_train'])
+
+            with tf.name_scope('word_rnn_layer') as scope:
+                word_rnn_fw_cell = LSTMCell(num_units=self._word_rnn_size)
+                word_rnn_bw_cell = LSTMCell(num_units=self._word_rnn_size)
+                (char_output_fw, char_output_bw), states = tf.nn.bidirectional_dynamic_rnn(
+                    word_rnn_fw_cell, word_rnn_bw_cell, char_rnn_outputs, dtype=tf.float32,
+                    sequence_length=nodes['word_lens'], scope='{}bidirectional_rnn'.format(scope))
+                word_rnn_outputs = tf.concat([char_output_fw, char_output_bw], axis=2)
+
+                with tf.name_scope('word_pooling_layer'):
+                    word_rnn_outputs, nodes['attentions'] = self._attention_pool(word_rnn_outputs)
+
+                word_rnn_outputs = dropout(
+                    word_rnn_outputs, rate=self._word_rnn_dropout, training=nodes['is_train'])
 
             with tf.variable_scope('softmax_layer'):
-                nodes['W_s'] = tf.Variable(tf.random_normal([self._rnn_size, 1]), name='weight')
+                nodes['W_s'] = tf.Variable(
+                    tf.random_normal([self._word_rnn_size * 2, 1]), name='weight')
                 nodes['b_s'] = tf.Variable(tf.random_normal([1]), name='bias')
-                logits = tf.squeeze(tf.matmul(final_activation, nodes['W_s']) + nodes['b_s'])
+                logits = tf.squeeze(tf.matmul(word_rnn_outputs, nodes['W_s']) + nodes['b_s'])
                 nodes['y_pred'] = tf.nn.sigmoid(logits)
 
             with tf.variable_scope('optimizer'):
@@ -355,37 +387,57 @@ class CharLSTM(object):
 
     def _add_padding(self, X):
         """
-        Add paddings to X in order to align the sequence lengths.
+        Add padding to X in order to align the sequence lengths.
 
-        :param X: list of sequences of character IDs
-        :return: padded list of sequences of character IDs & list of sequence length before padding
+        :param X: list (each name) of list (each word) of character IDs
+        :return: padded list of list of character IDs & list of word length before padding & list of
+            character length before padding
         """
-        max_len = max(len(x) for x in X)
-        seq_lens = list()
 
-        for x in X:
-            seq_lens.append(len(x))
-            pad_len = max_len - len(x)
-            x.extend([self._padding_id for _ in range(pad_len)])
-        return X, seq_lens
+        def get_max(X):
+            """Compute the maximum word length and maximum character length."""
+            max_word_len, max_char_len = 0, 0
+            for name in X:
+                if max_word_len < len(name):
+                    max_word_len = len(name)
+                for word in name:
+                    if max_char_len < len(word):
+                        max_char_len = len(word)
+            return max_word_len, max_char_len
 
-    def _encode_chars(self, samples, fit=False):
-        """Convert samples of characters into encoded characters (character IDs)."""
+        max_word_len, max_char_len = get_max(X)
+        word_lens = list()
+        char_lens = list()
+
+        for name in X:
+            word_lens.append(len(name))
+            word_pad_len = max_word_len - len(name)
+            name.extend([[] for _ in range(word_pad_len)])
+
+            for word in name:
+                char_lens.append(len(word))
+                char_pad_len = max_char_len - len(word)
+                word.extend([self._padding_id for _ in range(char_pad_len)])
+
+        return X, word_lens, char_lens
+
+    def _encode_chars(self, names, fit=False):
+        """Encode list of names into list (each name) of list (each word) of character IDs."""
         if fit:
-            encoded_samples = self._encoder.fit_encode(samples)
+            name_id2word_id2char_ids = self._encoder.fit_encode(names)
             self._vocab_size = self._encoder.vocab_size
         else:
-            encoded_samples = self._encoder.encode(samples)
-        return encoded_samples
+            name_id2word_id2char_ids = self._encoder.encode(names)
+        return name_id2word_id2char_ids
 
-    def _fit_encoder(self, samples):
-        """Fit the encoder to the given samples (of list of character IDs)."""
-        self._encoder.fit(samples)
+    def _fit_encoder(self, names):
+        """Fit the encoder to the given list of names."""
+        self._encoder.fit(names)
         self._vocab_size = self._encoder.vocab_size
 
-    def _decode_chars(self, samples):
-        """Convert samples of encoded character IDs into decoded characters."""
-        return self._encoder.decode(samples)
+    def _decode_chars(self, name_id2word_id2char_ids):
+        """Decode list (each name) of list (each word) of encoded character IDs into characters."""
+        return self._encoder.decode(name_id2word_id2char_ids)
 
     @staticmethod
     def _categorize_y(y, low_cutoff=CLASS2DEFAULT_CUTOFF[NEGATIVE_CLASS],
@@ -401,3 +453,77 @@ class CharLSTM(object):
                 return POSITIVE_CLASS
 
         return [categorize_label(label) for label in y]
+
+    def _mean_pool(self, rnn_outputs, batch_size, max_char_len, max_word_len, char_lens):
+        """
+        Perform mean-pooling after the character-RNN layer.
+
+        :param rnn_outputs: hidden states of all the time steps after the character-RNN layer
+        :return: mean of the hidden states over every time step
+        """
+        # perform mean pooling over characters
+        rnn_outputs = tf.reduce_mean(rnn_outputs, reduction_indices=1)
+
+        # In order to avoid 0 padding affect the mean, multiply by `n / m` where `n` is
+        # `max_char_len` and `m` is `char_lens`
+        rnn_outputs = tf.multiply(rnn_outputs, tf.cast(max_char_len, tf.float32))  # multiply by `n`
+
+        # swap the dimensions in order to divide by an appropriate value for each time step
+        rnn_outputs = tf.transpose(rnn_outputs)
+
+        rnn_outputs = tf.divide(rnn_outputs, tf.cast(char_lens, tf.float32))  # divide by `m`
+        rnn_outputs = tf.transpose(rnn_outputs)  # shape back to the original shape
+
+        # batch and word-len dimensions were merged before running character-RNN so shape it back
+        rnn_outputs = tf.reshape(rnn_outputs, [batch_size, max_word_len, self._char_rnn_size * 2])
+
+        # there are NaN due to padded words (with char_len=0) so convert those NaN to 0
+        rnn_outputs = tf.where(tf.is_nan(rnn_outputs), tf.zeros_like(rnn_outputs), rnn_outputs)
+
+        return rnn_outputs
+
+    def _attention_pool(self, rnn_outputs):
+        """
+        Perform attention-pooling. Train an attention layer to soft search on hidden states to use
+        and return weighted sum of the hidden states.
+
+        :param rnn_outputs: hidden states of all the time steps after the word-RNN layer
+        :return: weighted sum of the hidden states and attention weights for each time step
+        """
+        W = tf.Variable(tf.random_normal([2 * self._word_rnn_size]), name='weight_attention')
+        b = tf.Variable(tf.random_normal([1]), name='bias_attention')
+
+        # shape: batch_size * word_len
+        attentions = tf.reduce_sum(tf.multiply(W, rnn_outputs), reduction_indices=2) + b
+        attentions = tf.nn.softmax(attentions)  # convert to probability
+
+        # swap the dimensions in order to multiply by attentions to each word (the 2nd dimension)
+        rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])
+
+        # expand the dimension in order to multiply outputs by attentions
+        attentions = tf.expand_dims(attentions, axis=1)
+
+        rnn_outputs = tf.multiply(attentions, rnn_outputs)
+        rnn_outputs = tf.transpose(rnn_outputs, perm=[0, 2, 1])  # shape back to the original shape
+
+        # pool hidden states of multiple words (after applying attention) into one hidden states
+        rnn_outputs = tf.reduce_sum(rnn_outputs, reduction_indices=1)
+
+        return rnn_outputs, tf.squeeze(attentions, axis=1)
+
+    def _visualize_embedding(self, model_path, summary_writer):
+        """Create metadata file (and its config file) for tensorboard's embedding visualization."""
+        metadata_path = os.path.join(model_path, self._tensorboard_dir, _EMBEDDING_METADATA_FILE)
+
+        # create the metadata config file
+        config = projector.ProjectorConfig()
+        embedding = config.embeddings.add()
+        embedding.tensor_name = self._nodes['embeddings'].name
+        embedding.metadata_path = metadata_path
+        projector.visualize_embeddings(summary_writer, config)
+
+        # create metadata file
+        with open(metadata_path, 'w', encoding='utf8') as metadata_file:
+            metadata_file.write('Character\tID\n')
+            for id_, char in enumerate(self._encoder.chars):
+                metadata_file.write('{}\t{}\n'.format(char, id_))

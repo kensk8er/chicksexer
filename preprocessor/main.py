@@ -1,27 +1,29 @@
 # -*- coding: UTF-8 -*-
 """
-Main module of preprocesser package. Can be executed by `python -m preprocesser`.
+Main module of preprocessor package. Can be executed by `python -m preprocessor`.
 """
 import os
 import pickle
+from random import shuffle
 
 import numpy as np
 
 from chicksexer.constant import POSITIVE_CLASS, NEGATIVE_CLASS, NEUTRAL_CLASS, CLASS2DEFAULT_CUTOFF
 from chicksexer.util import get_logger
-from preprocesser import PACKAGE_ROOT
-from preprocesser.dbpedia import gen_triples_from_file
-from preprocesser.gender_csv import gen_name_gender_from_csv
-from preprocesser.us_stats import compute_gender_probas
-from preprocesser.util import Name2Proba
+from preprocessor import PACKAGE_ROOT
+from preprocessor.dbpedia import gen_triples_from_file
+from preprocessor.gender_csv import gen_name_gender_from_csv
+from preprocessor.us_stats import compute_gender_probas
+from preprocessor.util import Name2Proba
 
 __author__ = 'kensk8er'
 
 _DATA_ROOT = os.path.join(PACKAGE_ROOT, os.path.pardir, 'data')
 _RAW_DATA_ROOT = os.path.join(_DATA_ROOT, 'raw')
-_PROCESSED_DATA_PATH = os.path.join(_DATA_ROOT, 'name2proba.pkl')
+_PROCESSED_DATA_PATH = os.path.join(_DATA_ROOT, 'name2proba_{}.pkl')
 _NEUTRAL_NAME_AUGMENTATION_NUM = 100000
 _FEMALE_NAME_AUGMENTATION_NUM = 85000
+_TEST_DATA_SIZE = 10000  # the size of the whole dataset is ~400,000
 _LOGGER = get_logger(__name__)
 
 _CLASS2PROB = {
@@ -132,6 +134,27 @@ def main():
     name2proba = _augment_full_names(name2proba, 'neutral')
     _LOGGER.info('Augmenting Female Names...')
     name2proba = _augment_full_names(name2proba, 'female')
+    _LOGGER.info('Saving to the pickle files...')
 
-    with open(_PROCESSED_DATA_PATH, 'wb') as pickle_file:
-        pickle.dump(dict(name2proba), pickle_file)  # save as a normal dict object
+    # randomly split into train/test set
+    name2proba = dict(name2proba)
+    assert len(name2proba) > _TEST_DATA_SIZE, 'Whole dataset size is not larger than test set size.'
+    ids = list(range(len(name2proba)))
+    shuffle(ids)
+    test_ids = set(ids[:_TEST_DATA_SIZE])
+    name2proba_train = dict()
+    name2proba_test = dict()
+
+    for id_, (name, proba) in enumerate(name2proba.items()):
+        if id_ in test_ids:
+            name2proba_test[name] = proba
+        else:
+            name2proba_train[name] = proba
+
+    # write to pickle files
+    with open(_PROCESSED_DATA_PATH.format('train'), 'wb') as train_file:
+        pickle.dump(name2proba_train, train_file)
+    with open(_PROCESSED_DATA_PATH.format('test'), 'wb') as test_file:
+        pickle.dump(name2proba_test, test_file)
+    with open(_PROCESSED_DATA_PATH.format('all'), 'wb') as all_file:
+        pickle.dump(name2proba, all_file)

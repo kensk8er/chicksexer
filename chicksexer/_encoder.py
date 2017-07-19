@@ -15,8 +15,9 @@ class UnseenCharacterException(Exception):
 class CharEncoder(object):
     """Encode characters into character IDs."""
 
-    _start_char = '^'  # the character that represents the start of a name
-    _end_char = '$'  # the character that represents the end of a name
+    _start_char = '^'  # the character that represents the start of a name word
+    _end_char = '$'  # the character that represents the end of a name word
+    _separator = ' '  # the character that separates words in a name
 
     def __init__(self, lower=True):
         self._label_encoder = LabelEncoder()
@@ -25,14 +26,14 @@ class CharEncoder(object):
         self._fit = False
         self._lower = lower
 
-    def fit(self, samples):
+    def fit(self, names):
         """
-        Fit the character encoder to the samples of characters given.
+        Fit the character encoder to the samples of names given.
 
-        :param samples: samples of characters (e.g. sentences)
+        :param names: list of names
         """
-        characters = ''.join(samples)
-        characters = self._clean_characters(characters)
+        characters = ''.join(names)
+        characters = self._clean_characters(characters).replace(' ', '')
         characters = list(characters)
         characters.insert(0, self._start_char)
         characters.insert(1, self._end_char)
@@ -41,72 +42,87 @@ class CharEncoder(object):
         self._end_char_id = int(self._label_encoder.transform([self._end_char])[0])
         self._fit = True
 
-    def encode(self, samples):
+    def encode(self, names):
         """
-        Encode samples of characters into samples of character IDs using the character encoder.
+        Encode list of names into list of list of character IDs using the character encoder.
 
-        :param samples: samples of characters (e.g. sentences)
-        :return: Samples of character IDs
+        :param names: list of names
+        :return: list (each name) of list (each word) of character IDs
         """
-        encoded_samples = list()
-        for sample in samples:
-            sample = self._clean_characters(sample)
-            sample = '{}{}{}'.format(self._start_char, sample, self._end_char)
+        name_id2word_id2char_ids = list()
+        for name in names:
+            name = self._clean_characters(name)
+            word_id2char_ids = list()
 
-            try:
-                encoded_samples.append(self._label_encoder.transform(list(sample)).tolist())
-            except ValueError as exception:
-                unseen_chars = regex.search(
-                    r'y contains new labels: (.*)$', exception.args[0]).groups()[0]
-                raise UnseenCharacterException('Unseen characters: {}'.format(unseen_chars))
+            for word in name.split(self._separator):
+                word = '{}{}{}'.format(self._start_char, word, self._end_char)
+                try:
+                    word_id2char_ids.append(self._label_encoder.transform(list(word)).tolist())
+                except ValueError as exception:
+                    unseen_chars = regex.search(
+                        r'y contains new labels: (.*)$', exception.args[0]).groups()[0]
+                    raise UnseenCharacterException('Unseen characters: {}'.format(unseen_chars))
 
-        return encoded_samples
+            name_id2word_id2char_ids.append(word_id2char_ids)
 
-    def decode(self, samples):
+        return name_id2word_id2char_ids
+
+    def decode(self, name_id2word_id2char_ids):
         """
-        Decode samples of character IDs into samples of original characters using the character 
-        encoder. (Reverse operation of encode())
+        Decode list of list of character IDs into list of names using the character encoder.
+        (Reverse operation of encode())
 
-        :param samples: samples of characters (e.g. sentences)
-        :return: Samples of original characters
+        :param name_id2word_id2char_ids: list (each name) of list (each word) of character IDs
+        :return: list of names
         """
-        decoded_samples = list()
-        for sample in samples:
-            sample.remove(self._start_char_id)
-            sample.remove(self._end_char_id)
-            decoded_samples.append(''.join(self._label_encoder.inverse_transform(sample)))
-        return decoded_samples
+        names = list()
+        for word_id2char_ids in name_id2word_id2char_ids:
+            words = list()
 
-    def fit_encode(self, samples):
-        """
-        Fit the character encoder to samples of characters and encode them into samples of 
-        character IDs using the fitted encoder.
+            for char_ids in word_id2char_ids:
+                char_ids.remove(self._start_char_id)
+                char_ids.remove(self._end_char_id)
+                words.append(''.join(self._label_encoder.inverse_transform(char_ids)))
 
-        :param samples: samples of characters (e.g. sentences)
-        :return: Samples of character IDs
+            names.append(self._separator.join(words))
+
+        return names
+
+    def fit_encode(self, names):
         """
-        self.fit(samples)
-        return self.encode(samples)
+        Fit the character encoder to list of names and encode them into list of list of character
+        IDs using the fitted encoder.
+
+        :param names: list of names
+        :return: list (each name) of list (each word) of character IDs
+        """
+        self.fit(names)
+        return self.encode(names)
 
     @property
     def start_char(self):
-        """The character that represents the start of a name."""
+        """The character that represents the start of a word."""
         return self._start_char
 
     @property
     def start_char_id(self):
-        """ID of the character that represents the start of a name."""
+        """ID of the character that represents the start of a word."""
         return self._start_char_id
 
     @property
     def end_char(self):
-        """The character that represents the end of a name."""
+        """The character that represents the end of a word."""
         return self._end_char
 
     @property
     def end_char_id(self):
-        """ID of the character that represents the end of a name."""
+        """ID of the character that represents the end of a word."""
         return self._end_char_id
+
+    @property
+    def separator_char(self):
+        """The character that represents the separator of a name."""
+        return self._separator
 
     @property
     def vocab_size(self):
@@ -127,3 +143,8 @@ class CharEncoder(object):
         characters = regex.sub(r'`', "'", characters)
         characters = regex.sub(r'–', "-", characters)
         return characters
+
+    @property
+    def chars(self):
+        """Characters fitted in order of ascending character ID."""
+        return self._label_encoder.classes_

@@ -13,7 +13,7 @@ chicksexer - Python package for gender classification
 
 Several merits of using the classifier instead of simply looking up known male/female names are:
 
-* Sometimes simple name lookup does not work. For instance, "Ryu" is likely to be a male name if it's followed by a Japanese surname, whereas it can be a Korean surname as well, then it's gender neutral.
+* Sometimes simple name lookup does not work. For instance, "Miki" is a Japanese female name, but also a Croatian male name.
 * Can predict the gender of a name that does not exist in the list of male/female names.
 * Can deal with a typo in a name relatively easily.
 
@@ -30,10 +30,14 @@ You can also get an estimate as a simple string as follows:
 'male'
 >>> predict_gender('Ponya', return_proba=False)  # modify the name such that it sounds like a female name
 'female'
->>> predict_gender('Ryu Ito', return_proba=True)  # Ryu here is a Japanese first name
-{'female': 0.04139333963394165, 'male': 0.9586066603660583}
->>> predict_gender('Ryu Seo-yeon', return_proba=True)  # Ryu is a Korean surname, Seo-yeon is a popular first name for girls
-{'female': 0.6994868814945221, 'male': 0.3005131185054779}
+>>> predict_gender('Miki Suzuki', return_proba=True)  # Suzuki here is a Japanese surname so Miki is a female name
+{'female': 0.9997618066990981, 'male': 0.00023819330090191215}
+>>> predict_gender('Miki Adamić', return_proba=True)  # Adamić is a Croatian surname so Miki is a male name
+{'female': 0.16958969831466675, 'male': 0.8304103016853333}
+>>> predict_gender('Jessica')
+{'female': 0.999996105068476, 'male': 3.894931523973355e-06}
+>>> predict_gender('Jesssica')  # typo in Jessica
+{'female': 0.9999851534785194, 'male': 1.4846521480649244e-05}
 ```
 
 If you want to predict the gender of multiple names, use `predict_genders` (plural) function instead:
