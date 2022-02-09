@@ -1,5 +1,5 @@
 numpy==1.12.1
-tensorflow==1.0.1
+tensorflow==2.5.3
 scikit-learn==0.18.1
 scipy>=0.18.1
 docopt>=0.6.2
